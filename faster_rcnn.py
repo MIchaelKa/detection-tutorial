@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 # from torch import nn
+from torch.nn import functional as F
 
 from torchvision import models
 
@@ -33,14 +34,14 @@ class RPN(nn.Module):
 
         self.conv3 = nn.Conv2d(in_channels, intermediate_size, kernel_size=3, stride=1, padding=1)
 
-        N = 9 # anchors per pixel
+        N = 9 # TODO: anchors per pixel
         self.reg = nn.Conv2d(intermediate_size, N*4, kernel_size=1, stride=1, padding=0)
         self.cls = nn.Conv2d(intermediate_size, N, kernel_size=1, stride=1, padding=0)
         
         
-    def forward(self, x):
+    def forward(self, x,):
 
-        x = self.conv3(x)
+        x = F.relu(self.conv3(x))
 
         boxes = self.reg(x)
         classes = self.cls(x)
@@ -59,12 +60,19 @@ class FasterRCNN(nn.Module):
 
         box, cls = self.rpn(x)
 
-        # box = box.reshape(box.shape[0], -1, 4)
-        box = box.reshape(box.shape[0], 4, -1)
+        box = box.permute(0, 2, 3, 1).contiguous()
+        box = box.view(box.shape[0], -1, 4)
 
-        print(box.shape)
-        print(cls.shape)
-                 
+        # will not work without contiguous ?
+        # reshape will
+        # view no
+        # use reshape?!
+        # box = box.reshape(box.shape[0], -1, 4)
+        # box = box.reshape(box.shape[0], 4, -1)
+
+        cls = cls.permute(0, 2, 3, 1).contiguous()
+        cls = cls.view(cls.shape[0], -1, 1)
+         
         return box, cls
 
 

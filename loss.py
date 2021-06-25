@@ -1,0 +1,62 @@
+
+import torch
+import torch.nn as nn
+from torch.nn import functional as F
+
+from utils import generate_anchors, process_anchors
+
+class BoxLoss(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+
+        self.device = device
+        self.anchors = generate_anchors().to(device)
+        
+    def process_target_batch(self, targets):   
+        gt_labels, gt_offsets = [], []
+        
+        for target in targets:
+            labels, offsets = process_anchors(self.anchors, target['boxes'])
+            gt_labels.append(labels)
+            gt_offsets.append(offsets)
+    #         print(offsets.shape)
+            
+        gt_labels = torch.stack(gt_labels, dim=0)
+        gt_offsets = torch.stack(gt_offsets, dim=0)
+                
+        return gt_labels, gt_offsets
+
+    def criterion(self, gt_labels, gt_offsets, predicted_labels, predicted_offsets):
+
+        positive_anchors = (gt_labels != 0)   
+        
+        # smooth_l1_loss, l1_loss
+        box_loss = F.l1_loss(
+            predicted_offsets[positive_anchors],
+            gt_offsets[positive_anchors],
+        )
+        
+        gt_labels = gt_labels.type_as(predicted_labels)
+        
+        cls_loss = F.binary_cross_entropy_with_logits(
+            predicted_labels,
+            gt_labels.unsqueeze(-1)
+        )
+
+        print(f'box loss: {box_loss}')
+        print(f'cls loss: {cls_loss}')
+        
+        loss = box_loss + cls_loss
+        
+        return loss
+
+    def forward(self, predicted_labels, predicted_offsets, targets):
+
+        gt_labels, gt_offsets = self.process_target_batch(targets)
+
+        gt_labels = gt_labels.to(self.device)
+        gt_offsets = gt_offsets.to(self.device)
+
+        loss = self.criterion(gt_labels, gt_offsets, predicted_labels, predicted_offsets)
+
+        return loss
