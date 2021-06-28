@@ -1,13 +1,11 @@
 import torch
-
 from torchvision.transforms import functional as F
-
-from utils import xy_to_cxcy
 
 def get_transform(train=True):
     transforms = []
       
     transforms.append(Resize((200, 200)))
+    # transforms.append(Scale())
     transforms.append(ToTensor())
 
     return Compose(transforms)
@@ -36,13 +34,19 @@ class Resize(object):
         
         new_boxes = boxes / scale_factors
         new_boxes = new_boxes / size_tensor
-
-        # new_boxes = xy_to_cxcy(new_boxes)
         
         target["boxes"] = new_boxes
     
         return image, target
-    
+
+class Scale(object):
+    # TODO: do this once, before training       
+    def __call__(self, image, target):
+        image_dims = torch.FloatTensor([image.width, image.height, image.width, image.height]).unsqueeze(0)
+        boxes = target["boxes"]    
+        new_boxes = boxes / image_dims 
+        target["boxes"] = new_boxes
+        return image, target
 
 class ToTensor(object):
     def __call__(self, image, target):

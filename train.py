@@ -1,11 +1,15 @@
 import numpy as np
 
 import torch
+from torch.utils.data import DataLoader, SubsetRandomSampler
 
 from faster_rcnn import faster_rcnn
 from utils import format_time
-from dataset import PennFudanDataset
 from loss import BoxLoss
+from transfroms import get_transform
+
+# from dataset import PennFudanDataset
+from dataset.pascal_voc_dataset import PascalVOCDataset
 
 import time
 
@@ -22,9 +26,11 @@ def get_device():
 
 def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True):
     
-    model.train()
-    
     t0 = time.time()
+
+    model.train()
+
+    print_every = 100
 
     for index, (image_batch, target_batch) in enumerate(train_loader):
         
@@ -33,11 +39,11 @@ def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
  
         offsets, labels = model(image_batch)
 
-        loss = criterion(labels, offsets, target_batch)
+        loss, box_loss, cls_loss = criterion(labels, offsets, target_batch)
 
-        if verbose:
-            print('[train] index: {:>2d}, loss = {:.5f}, time: {}' \
-                .format(index, loss, format_time(time.time() - t0)))
+        if verbose and index % print_every == 0:
+            print('[train] index: {:>2d}, loss(box/cls) = {:.5f}({:.5f}/{:.5f}) time: {}' \
+                .format(index, loss, box_loss, cls_loss, format_time(time.time() - t0)))
         
         optimizer.zero_grad()
         # loss.backward(retain_graph=True)
@@ -74,7 +80,7 @@ def run_loader(
     ):
 
     device = get_device()
-    
+
     criterion = BoxLoss(device)
     model = model.to(device)
 
@@ -90,37 +96,65 @@ def run_loader(
     
     return train_info
 
-def main():
-    print('main')
+def create_dataloaders_sampler(
+    train_dataset,
+    valid_dataset,
+    batch_size,
+    num_workers=0,
+    pin_memory=False
+    ):
+    
+    all_number = len(train_dataset)
+    train_number = int(all_number*0.9)
 
-    t1 = time.time()
+    print(f'data size  all: {all_number}, train: {train_number}')
 
-    dataset = PennFudanDataset('../PennFudanPed', get_transform(train=False))
-
-    data_loader = torch.utils.data.DataLoader(
-        dataset,
-        batch_size=2,
-        shuffle=True,
-        num_workers=4,
+    train_sampler = SubsetRandomSampler(range(train_number))
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        sampler=train_sampler,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
         collate_fn=collate_fn
     )
 
-    # img, target = dataset[0]
-    images, targets = next(iter(data_loader))
-    # images = next(iter(data_loader))
+    valid_sampler = SubsetRandomSampler(range(train_number, all_number))
+    valid_loader = DataLoader(
+        valid_dataset,
+        batch_size=batch_size,
+        sampler=valid_sampler,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        collate_fn=collate_fn
+    )
 
-    # images = list(image for image in images)
-    # targets = [{k: v for k, v in t.items()} for t in targets]
+    # TODO: verbose support
+    print(f'data_loader_size train: {len(train_loader)}, valid: {len(valid_loader)}')
+    
+    return train_loader, valid_loader
 
-    net = faster_rcnn()
+def main():
+    print('run main')
 
-    x = torch.rand(5, 3, 300, 300)
+    t1 = time.time()
 
-    images = torch.stack(images, dim=0)
+    # dataset = PennFudanDataset('../PennFudanPed', get_transform(train=False))
 
-    out = net(images)
+    dataset = PascalVOCDataset('./pascal-voc/', 'TRAIN', get_transform(train=True))
+    #TODO: valid_dataset = PascalVOCDataset('./pascal-voc/', 'VALID', get_transform(train=False))
 
-    # print(out.shape)
+    train_loader, valid_loader = create_dataloaders_sampler(dataset, dataset, batch_size=8)
+
+    model = faster_rcnn()
+
+    params = {
+        'learning_rate' : 0.001,
+        'weight_decay'  : 0,
+        'num_epoch'     : 2
+    }
+
+    run_loader(model, train_loader, valid_loader, **params)
 
     print('time: {} '.format(format_time(time.time() - t1)))
 

@@ -28,7 +28,7 @@ class BoxLoss(nn.Module):
 
     def criterion(self, gt_labels, gt_offsets, predicted_labels, predicted_offsets):
 
-        positive_anchors = (gt_labels != 0)   
+        positive_anchors = (gt_labels != 0)
         
         # smooth_l1_loss, l1_loss
         box_loss = F.l1_loss(
@@ -42,13 +42,10 @@ class BoxLoss(nn.Module):
             predicted_labels,
             gt_labels.unsqueeze(-1)
         )
-
-        print(f'box loss: {box_loss}')
-        print(f'cls loss: {cls_loss}')
         
         loss = box_loss + cls_loss
         
-        return loss
+        return loss, box_loss, cls_loss
 
     def forward(self, predicted_labels, predicted_offsets, targets):
 
