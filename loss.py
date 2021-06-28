@@ -16,7 +16,9 @@ class BoxLoss(nn.Module):
         gt_labels, gt_offsets = [], []
         
         for target in targets:
-            labels, offsets = process_anchors(self.anchors, target['boxes'])
+            # TODO: can we move it all at once?
+            gt_boxes = target['boxes'].to(self.device)
+            labels, offsets = process_anchors(self.anchors, gt_boxes)
             gt_labels.append(labels)
             gt_offsets.append(offsets)
     #         print(offsets.shape)

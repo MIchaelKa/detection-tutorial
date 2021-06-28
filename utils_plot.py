@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import torchvision.transforms as T
 import cv2
-import numpy as np 
+import numpy as np
+import torch
 
 def show_image_and_bb(image, boxes):
     plt.figure(figsize=(6,6))
