@@ -4,7 +4,7 @@ import json
 import os
 from PIL import Image
 
-from transfroms import get_transform_to_show
+from transforms import get_transform_to_show
 
 class PascalVOCDataset(Dataset):
     """

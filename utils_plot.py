@@ -121,3 +121,43 @@ def show_image_from_dataset(dataset, index, top_n_anchors=10, verbose=True):
         for label in target['labels']:
             print(list(label_names.keys())[label.item()])
             # print(label)
+
+#
+# train info
+#
+
+def show_loss_history(train_info):
+    show_loss(
+        train_info['train_loss_history'],
+        train_info['train_box_loss_history'],
+        train_info['train_cls_loss_history']
+    )
+
+def show_loss(loss, box_loss, cls_loss):
+    _, axes = plt.subplots(1, 3, figsize=(18,4))
+
+    axes[0].set_title("Loss")
+    axes[0].plot(loss)
+
+    axes[1].set_title("Box Loss")
+    axes[1].plot(box_loss)
+
+    axes[2].set_title("Cls Loss")
+    axes[2].plot(cls_loss)
+
+def show_loss_epochs(train_info):
+    _, axes = plt.subplots(1, 3, figsize=(18,4))
+
+    x = np.arange(len(train_info['train_loss_epochs']))
+
+    axes[0].set_title("Loss")
+    axes[0].plot(train_info['train_loss_epochs'], '-o')
+    axes[0].set_xticks(x)
+
+    axes[1].set_title("Box Loss")
+    axes[1].plot(train_info['train_box_loss_epochs'], '-o')
+    axes[1].set_xticks(x)
+
+    axes[2].set_title("Cls Loss")
+    axes[2].plot(train_info['train_cls_loss_epochs'], '-o')
+    axes[2].set_xticks(x)
