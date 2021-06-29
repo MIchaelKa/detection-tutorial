@@ -4,12 +4,14 @@ import json
 import os
 from PIL import Image
 
+from transfroms import get_transform_to_show
+
 class PascalVOCDataset(Dataset):
     """
     A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
     """
 
-    def __init__(self, data_folder, split, transforms, keep_difficult=False):
+    def __init__(self, data_folder, split='TRAIN', transforms=None, keep_difficult=False):
         """
         :param data_folder: folder where data files are stored
         :param split: split, one of 'TRAIN' or 'TEST'
@@ -22,6 +24,10 @@ class PascalVOCDataset(Dataset):
         self.keep_difficult = keep_difficult
         self.split = split.upper()
         self.transforms = transforms
+
+        if self.transforms is None:
+            print('get_transform_to_show')
+            self.transforms = get_transform_to_show()
 
         # Read data files
         with open(os.path.join(data_folder, self.split + '_images.json'), 'r') as j:

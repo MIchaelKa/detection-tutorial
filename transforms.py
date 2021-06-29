@@ -10,6 +10,14 @@ def get_transform(train=True):
 
     return Compose(transforms)
 
+def get_transform_to_show():
+    transforms = []
+      
+    transforms.append(Scale())
+    transforms.append(ToTensor())
+
+    return Compose(transforms)
+
 class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
