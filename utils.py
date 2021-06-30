@@ -40,6 +40,22 @@ def cxcy_to_gcxgcy(cxcy, priors_cxcy):
     return torch.cat([(cxcy[:, :2] - priors_cxcy[:, :2]) / (priors_cxcy[:, 2:] / 10),  # g_c_x, g_c_y
                       torch.log(cxcy[:, 2:] / priors_cxcy[:, 2:]) * 5], 1)  # g_w, g_h
 
+def gcxgcy_to_cxcy(gcxgcy, priors_cxcy):
+    """
+    Decode bounding box coordinates predicted by the model, since they are encoded in the form mentioned above.
+
+    They are decoded into center-size coordinates.
+
+    This is the inverse of the function above.
+
+    :param gcxgcy: encoded bounding boxes, i.e. output of the model, a tensor of size (n_priors, 4)
+    :param priors_cxcy: prior boxes with respect to which the encoding is defined, a tensor of size (n_priors, 4)
+    :return: decoded bounding boxes in center-size form, a tensor of size (n_priors, 4)
+    """
+
+    return torch.cat([gcxgcy[:, :2] * priors_cxcy[:, 2:] / 10 + priors_cxcy[:, :2],  # c_x, c_y
+                      torch.exp(gcxgcy[:, 2:] / 5) * priors_cxcy[:, 2:]], 1)  # w, h
+                      
 def find_intersection(set_1, set_2):
     """
     Find the intersection of every box combination between two sets of boxes that are in boundary coordinates.

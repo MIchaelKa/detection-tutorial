@@ -6,6 +6,41 @@ import torch
 
 from utils import find_jaccard_overlap, generate_anchors, process_anchors
 
+def show_predictions(image, gt_boxes, predicted_boxes, verbose=True):      
+    img_arr = np.array(T.ToPILImage()(image))
+
+    image_dims = torch.FloatTensor([img_arr.shape[1], img_arr.shape[0], img_arr.shape[1], img_arr.shape[0]]).unsqueeze(0)
+
+    new_boxes = gt_boxes.clone()
+    new_boxes *= image_dims
+    color = (0, 0, 255)
+    
+    if verbose:
+        print('GT:')
+    for bbox in new_boxes:
+        if verbose:
+            print(bbox)
+        cv2.rectangle(img_arr, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
+
+    new_boxes = predicted_boxes.clone()
+    new_boxes *= image_dims
+    color = (255, 0, 0)
+    
+    if verbose:
+        print('Predictions:')
+    for bbox in new_boxes:
+        if verbose:
+            print(bbox)
+        cv2.rectangle(img_arr, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
+
+    if verbose:
+        print(f'Shape: {img_arr.shape}')
+
+    # plt.title(f'Shape: {img_arr.shape}', fontsize=16)
+    plt.imshow(img_arr)
+    plt.grid(False)
+    plt.axis('off')
+
 def show_image_and_bb(image, boxes, verbose=True):      
     # img_arr = np.array(image)
     img_arr = np.array(T.ToPILImage()(image))

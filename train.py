@@ -73,7 +73,7 @@ def create_dataloaders_sampler(
 def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True):
     
     t0 = time.time()
-    print_every = 20
+    print_every = 200
 
     model.train()
 
