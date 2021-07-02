@@ -2,7 +2,8 @@ import torch
 from torch.utils.data import DataLoader, SubsetRandomSampler
 
 from faster_rcnn import faster_rcnn
-from utils import format_time
+from utils import format_time, seed_everything
+from utils import calculate_mAP
 from loss import BoxLoss
 from transforms import get_transform
 from metrics import AverageMeter
@@ -38,7 +39,7 @@ def create_dataloaders_sampler(
     
     all_number = len(train_dataset)
     if debug:
-        all_number = 12
+        all_number = 100
 
     train_number = int(all_number*0.9)
 
@@ -111,6 +112,72 @@ def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
 
     return (loss_meter, box_loss_meter, cls_loss_meter)
 
+def validate(model, device, criterion, valid_loader, verbose=True):
+
+    t0 = time.time()
+    print_every = 20
+
+    model.eval()
+    
+    # loss
+    loss_meter = AverageMeter()
+    box_loss_meter = AverageMeter()
+    cls_loss_meter = AverageMeter()
+
+    # mAP
+    all_pred_boxes = []
+    all_pred_conf = []
+    all_true_boxes = []
+    all_true_labels = []
+
+    with torch.no_grad():
+        for index, (image_batch, target_batch) in enumerate(valid_loader):
+
+            image_batch = torch.stack(image_batch, dim=0)   
+            image_batch = image_batch.to(device)
+            
+            offsets, labels = model(image_batch)
+
+            loss, box_loss, cls_loss = criterion(labels, offsets, target_batch)
+            
+            # Update meters
+            loss_meter.update(loss.item())
+            box_loss_meter.update(box_loss.item())
+            cls_loss_meter.update(cls_loss.item())
+
+            # Detection
+            pred_boxes, pred_conf = model.detect(offsets, labels, prob_threshold=0.5, max_overlap=0.7)
+
+            # Save for mAP calculation
+            true_boxes = [t['boxes'] for t in target_batch]
+            true_labels = [t['labels'] for t in target_batch]
+
+            all_pred_boxes.extend(pred_boxes)
+            all_pred_conf.extend(pred_conf)
+            all_true_boxes.extend(true_boxes)
+            all_true_labels.extend(true_labels)
+
+            if verbose and index % print_every == 0:
+                print('[valid] index: {:>2d}, loss(box/cls) = {:.5f}({:.5f}/{:.5f}) time: {}' \
+                    .format(
+                        index,
+                        loss_meter.compute_average(),
+                        box_loss_meter.compute_average(),
+                        cls_loss_meter.compute_average(),
+                        format_time(time.time() - t0)
+                    )
+                )
+    if verbose:
+        print('[valid] calculate_mAP... time: {}'.format(format_time(time.time() - t0)))
+    
+    mAP = calculate_mAP(all_pred_boxes, all_pred_conf, all_true_boxes, all_true_labels, device, threshold=0.5)
+
+    if verbose:
+        print('[valid] mAP = {},  time: {}'.format(mAP, format_time(time.time() - t0)))
+   
+    return (loss_meter, box_loss_meter, cls_loss_meter), mAP
+
+
 def train_model(model, device, criterion, train_loader, valid_loader, optimizer, num_epochs, verbose=True):
        
     t0 = time.time()
@@ -123,6 +190,11 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
     train_box_loss_epochs = []
     train_cls_loss_epochs = []
 
+    valid_loss_epochs = []
+    valid_box_loss_epochs = []
+    valid_cls_loss_epochs = []
+    valid_scores = []
+
     if verbose:
         print('training started...')
     
@@ -130,7 +202,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 
         # Train
         t1 = time.time()
-        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer)
+        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=verbose)
 
         loss_meter, box_loss_meter, cls_loss_meter = loss_meters
 
@@ -152,11 +224,27 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 
         # Validate
         t2 = time.time()     
-        # v_loss_meter, v_score_meter = validate(model, device, valid_loader, criterion)
+        loss_meters, score = validate(model, device, criterion, valid_loader, verbose=verbose)
+
+        loss_meter, box_loss_meter, cls_loss_meter = loss_meters
+
+        valid_loss = loss_meter.compute_average()
+        valid_box_loss = box_loss_meter.compute_average()
+        valid_cls_loss = cls_loss_meter.compute_average()
+        
+        valid_loss_epochs.append(valid_loss)
+        valid_box_loss_epochs.append(valid_box_loss)
+        valid_cls_loss_epochs.append(valid_cls_loss)
+        valid_scores.append(score)
+
+        if verbose:
+            print('[valid] epoch: {:>2d}, loss(box/cls) = {:.5f}({:.5f}/{:.5f}), mAP = {},  time: {}' \
+                .format(epoch+1, valid_loss, valid_box_loss, valid_cls_loss, score, format_time(time.time() - t1)))
 
     if verbose:
         # print('[valid] best epoch {:>2d}, score = {:.5f}'.format(best_epoch+1, valid_best_score))
         print('training finished for: {}'.format(format_time(time.time() - t0)))
+
 
     train_info = {
         'train_loss_history'     : train_loss_history,
@@ -166,12 +254,17 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
         'train_loss_epochs'     : train_loss_epochs,
         'train_box_loss_epochs' : train_box_loss_epochs,
         'train_cls_loss_epochs' : train_cls_loss_epochs,
+
+        'valid_loss_epochs'     : valid_loss_epochs,
+        'valid_box_loss_epochs' : valid_box_loss_epochs,
+        'valid_cls_loss_epochs' : valid_cls_loss_epochs,
+
+        'valid_scores' : valid_scores,
     }
  
     return train_info
 
 def run_loader(
-    model,
     train_loader,
     valid_loader,
     learning_rate=3e-4,
@@ -190,8 +283,8 @@ def run_loader(
 
     device = get_device()
 
+    model = faster_rcnn(device).to(device)
     criterion = BoxLoss(device)
-    model = model.to(device)
 
     optimizer = torch.optim.SGD(
         model.parameters(),
@@ -206,7 +299,6 @@ def run_loader(
     return train_info
 
 def run(
-    model,
     learning_rate=3e-4,
     weight_decay=1e-3,
     batch_size=8,
@@ -223,7 +315,7 @@ def run(
 
     train_loader, valid_loader = create_dataloaders_sampler(dataset, dataset, batch_size=batch_size, debug=debug)
 
-    train_info = run_loader(model, train_loader, valid_loader, learning_rate, weight_decay, num_epoch, verbose)
+    train_info = run_loader(train_loader, valid_loader, learning_rate, weight_decay, num_epoch, verbose)
      
     return train_info
 
@@ -232,11 +324,8 @@ def main(debug=True):
     print('run main...')
     t0 = time.time()
 
-    # SEED = 2020
-    # seed_everything(SEED)
-    # print_version()
-
-    model = faster_rcnn()
+    SEED = 2021
+    seed_everything(SEED)
 
     params = {
         'learning_rate' : 0.001,
@@ -247,7 +336,7 @@ def main(debug=True):
         'debug'         : debug
     }
 
-    train_info = run(model, **params)
+    train_info = run(**params)
 
     print('main finished for: {} '.format(format_time(time.time() - t0)))
 

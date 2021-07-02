@@ -94,6 +94,92 @@ def find_jaccard_overlap(set_1, set_2):
 
     return intersection / union  # (n1, n2)
 
+def calculate_mAP(det_boxes, det_scores, true_boxes, true_labels, device, threshold=0.5):
+
+    true_images = list()
+    for i in range(len(true_labels)):
+        true_images.extend([i] * true_labels[i].size(0))
+    # n_objects is the total no. of objects across all images
+    true_images = torch.LongTensor(true_images).to(device) # (n_objects)
+    true_boxes = torch.cat(true_boxes, dim=0)  # (n_objects, 4)
+    true_labels = torch.cat(true_labels, dim=0)  # (n_objects)
+
+    det_images = list()
+    for i in range(len(det_scores)):
+        det_images.extend([i] * det_scores[i].size(0))
+    det_images = torch.LongTensor(det_images).to(device)  # (n_detections)
+    det_boxes = torch.cat(det_boxes, dim=0)  # (n_detections, 4)
+    det_scores = torch.cat(det_scores, dim=0)  # (n_detections)
+
+    n_objects = true_boxes.size(0)
+    true_boxes_detected = torch.zeros(n_objects, dtype=torch.uint8).to(device)
+
+    # Sort detections in decreasing order of confidence/scores
+    det_scores_sorted, sort_ind = torch.sort(det_scores, dim=0, descending=True)  # (n_detections)
+    det_images_sorted = det_images[sort_ind]  # (n_detections)
+    det_boxes_sorted = det_boxes[sort_ind]  # (n_detections, 4)
+
+    n_detections = det_boxes.size(0)
+
+    # In the order of decreasing scores, check if true or false positive
+    true_positives = torch.zeros((n_detections), dtype=torch.float).to(device)  # (n_detections)
+    false_positives = torch.zeros((n_detections), dtype=torch.float).to(device)  # (n_detections)
+    false_negatives = torch.zeros((n_detections), dtype=torch.float).to(device)  # (n_detections)
+
+    for d in range(n_detections):
+        this_detection_box = det_boxes_sorted[d].unsqueeze(0)  # (1, 4)
+        this_image = det_images_sorted[d]  # (), scalar
+        
+        # Find objects in the same image and whether they have been detected before  
+        this_image_boxes = true_boxes[true_images==this_image] # (n_objects_in_img, 4)
+        
+        # Find maximum overlap of this detection with objects in this image of this class
+        overlaps = find_jaccard_overlap(this_detection_box, this_image_boxes)  # (1, n_objects_in_img)
+        max_overlap, ind = torch.max(overlaps.squeeze(0), dim=0)  # (), () - scalars
+        
+        # Index in the true_boxes and true_boxes_detected to find duplicated detections
+        original_ind = torch.LongTensor(range(true_boxes.size(0)))[true_images == this_image][ind]
+        
+        if max_overlap > threshold:      
+            if true_boxes_detected[original_ind] == 0:
+                true_positives[d] = 1
+                true_boxes_detected[original_ind] = 1
+            else:
+                false_positives[d] = 1
+        else:
+            false_positives[d] = 1
+            
+        false_negatives[d] = (1-true_boxes_detected).sum()
+
+    # Compute cumulative precision and recall at each detection in the order of decreasing scores
+    cumul_true_positives = torch.cumsum(true_positives, dim=0)  # (n_detections)
+    cumul_false_positives = torch.cumsum(false_positives, dim=0)  # (n_detections)
+
+    cumul_precision = cumul_true_positives / (
+        cumul_true_positives + cumul_false_positives + 1e-10)  # (n_detections)
+
+    cumul_recall = cumul_true_positives / (
+        cumul_true_positives + false_negatives + 1e-10)  # (n_detections)
+
+    # AP calculations
+    recall_thresholds = torch.arange(start=0, end=1.1, step=.1).tolist()  # (11)
+
+    precisions = torch.zeros((len(recall_thresholds)), dtype=torch.float).to(device)  # (11)
+    for i, t in enumerate(recall_thresholds):
+        recalls_above_t = cumul_recall >= t
+        if recalls_above_t.any():
+            precisions[i] = cumul_precision[recalls_above_t].max()
+        else:
+            precisions[i] = 0.
+
+    average_precision = precisions.mean()
+
+    return average_precision
+
+#
+# anchors
+#
+
 import math
 
 def process_anchors(anchors, gt_boxes):
@@ -161,3 +247,20 @@ def format_time(elapsed):
     
     # Format as hh:mm:ss
     return str(datetime.timedelta(seconds=elapsed_rounded))
+
+#
+# common
+#
+
+import numpy as np
+import random
+import os
+
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True

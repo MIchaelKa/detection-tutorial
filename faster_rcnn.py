@@ -80,9 +80,9 @@ class FasterRCNN(nn.Module):
     def detect(self, offsets, labels, prob_threshold=0.5, max_overlap=0.5):
 
         batch_size = offsets.shape[0]
-        detections = []
 
-        print(batch_size)
+        detections = []
+        confidences = []
 
         for i in range(batch_size):
             image_labels = labels[i].squeeze()
@@ -93,7 +93,7 @@ class FasterRCNN(nn.Module):
             positive_indices = labels_probs > prob_threshold
 
             num_positives = positive_indices.sum()
-            print(f'[FasterRCNN] num_positives: {num_positives}')
+            # print(f'[FasterRCNN] num_positives: {num_positives}')
 
             positive_offsets = image_offsets[positive_indices]
             positive_anchors = xy_to_cxcy(self.anchors[positive_indices])
@@ -101,7 +101,7 @@ class FasterRCNN(nn.Module):
 
             predicted_boxes = cxcy_to_xy(gcxgcy_to_cxcy(positive_offsets, positive_anchors))
 
-            _, indices = torch.sort(positive_scores, descending=True)
+            sorted_scores, indices = torch.sort(positive_scores, descending=True)
             sorted_boxes = predicted_boxes[indices]
 
             overlap = find_jaccard_overlap(sorted_boxes, sorted_boxes)
@@ -127,9 +127,12 @@ class FasterRCNN(nn.Module):
                 suppress[box] = 0
 
             final_boxes = sorted_boxes[1-suppress]
+            final_scores = sorted_scores[1-suppress]
+
             detections.append(final_boxes)
+            confidences.append(final_scores)
     
-        return detections
+        return detections, confidences
 
 # net = faster_rcnn()
 # print(net)

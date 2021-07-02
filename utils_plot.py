@@ -6,7 +6,7 @@ import torch
 
 from utils import find_jaccard_overlap, generate_anchors, process_anchors
 
-def show_predictions(image, gt_boxes, predicted_boxes, verbose=True):      
+def show_predictions(image, gt_boxes, predicted_boxes, verbose=True):
     img_arr = np.array(T.ToPILImage()(image))
 
     image_dims = torch.FloatTensor([img_arr.shape[1], img_arr.shape[0], img_arr.shape[1], img_arr.shape[0]]).unsqueeze(0)
@@ -41,7 +41,7 @@ def show_predictions(image, gt_boxes, predicted_boxes, verbose=True):
     plt.grid(False)
     plt.axis('off')
 
-def show_image_and_bb(image, boxes, verbose=True):      
+def show_image_and_bb(image, boxes, verbose=True):
     # img_arr = np.array(image)
     img_arr = np.array(T.ToPILImage()(image))
 
