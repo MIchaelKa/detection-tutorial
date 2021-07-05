@@ -115,7 +115,7 @@ def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
 def validate(model, device, criterion, valid_loader, verbose=True):
 
     t0 = time.time()
-    print_every = 20
+    print_every = 100
 
     model.eval()
     
@@ -173,7 +173,7 @@ def validate(model, device, criterion, valid_loader, verbose=True):
     mAP = calculate_mAP(all_pred_boxes, all_pred_conf, all_true_boxes, all_true_labels, device, threshold=0.5)
 
     if verbose:
-        print('[valid] mAP = {},  time: {}'.format(mAP, format_time(time.time() - t0)))
+        print('[valid] mAP = {:.5f},  time: {}'.format(mAP, format_time(time.time() - t0)))
    
     return (loss_meter, box_loss_meter, cls_loss_meter), mAP
 
@@ -202,7 +202,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 
         # Train
         t1 = time.time()
-        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=verbose)
+        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=False)
 
         loss_meter, box_loss_meter, cls_loss_meter = loss_meters
 
@@ -224,7 +224,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 
         # Validate
         t2 = time.time()     
-        loss_meters, score = validate(model, device, criterion, valid_loader, verbose=verbose)
+        loss_meters, score = validate(model, device, criterion, valid_loader, verbose=False)
 
         loss_meter, box_loss_meter, cls_loss_meter = loss_meters
 
@@ -238,7 +238,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
         valid_scores.append(score)
 
         if verbose:
-            print('[valid] epoch: {:>2d}, loss(box/cls) = {:.5f}({:.5f}/{:.5f}), mAP = {},  time: {}' \
+            print('[valid] epoch: {:>2d}, loss(box/cls) = {:.5f}({:.5f}/{:.5f}), mAP = {:.5f},  time: {}' \
                 .format(epoch+1, valid_loss, valid_box_loss, valid_cls_loss, score, format_time(time.time() - t1)))
 
     if verbose:
@@ -296,7 +296,7 @@ def run_loader(
 
     train_info = train_model(model, device, criterion, train_loader, valid_loader, optimizer, num_epoch)
     
-    return train_info
+    return train_info, model
 
 def run(
     learning_rate=3e-4,
@@ -315,9 +315,9 @@ def run(
 
     train_loader, valid_loader = create_dataloaders_sampler(dataset, dataset, batch_size=batch_size, debug=debug)
 
-    train_info = run_loader(train_loader, valid_loader, learning_rate, weight_decay, num_epoch, verbose)
+    train_info, model = run_loader(train_loader, valid_loader, learning_rate, weight_decay, num_epoch, verbose)
      
-    return train_info
+    return train_info, valid_loader, model
 
 def main(debug=True):
 

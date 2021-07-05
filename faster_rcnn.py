@@ -126,8 +126,11 @@ class FasterRCNN(nn.Module):
                 # Don't suppress this box, even though it has an overlap of 1 with itself
                 suppress[box] = 0
 
-            final_boxes = sorted_boxes[1-suppress]
-            final_scores = sorted_scores[1-suppress]
+            mask = (1 - suppress).type(torch.BoolTensor)
+            final_boxes = sorted_boxes[mask]
+            final_scores = sorted_scores[mask]
+
+            # final_boxes.clamp_(0, 1)
 
             detections.append(final_boxes)
             confidences.append(final_scores)

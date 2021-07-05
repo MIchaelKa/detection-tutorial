@@ -41,7 +41,7 @@ class BoxLoss(nn.Module):
         # print(predicted_offsets[positive_anchors].shape)
         
         # smooth_l1_loss, l1_loss
-        box_loss = F.l1_loss(
+        box_loss = F.smooth_l1_loss(
             predicted_offsets[positive_anchors],
             gt_offsets[positive_anchors],
         )

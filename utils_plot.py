@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import torch
 
-from utils import find_jaccard_overlap, generate_anchors, process_anchors
+from utils import get_top_n_anchors, generate_anchors, process_anchors
 
 def show_predictions(image, gt_boxes, predicted_boxes, verbose=True):
     img_arr = np.array(T.ToPILImage()(image))
@@ -31,7 +31,7 @@ def show_predictions(image, gt_boxes, predicted_boxes, verbose=True):
     for bbox in new_boxes:
         if verbose:
             print(bbox)
-        cv2.rectangle(img_arr, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
+        cv2.rectangle(img_arr, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 1)
 
     if verbose:
         print(f'Shape: {img_arr.shape}')
@@ -65,18 +65,6 @@ def show_image_and_bb(image, boxes, verbose=True):
     plt.grid(False)
     plt.axis('off')
 
-
-def get_top_n_anchors(anchors, gt_boxes, top_n=10):
-    # anchors (N1, 4)
-    # gt_boxes (N2, 4)
- 
-    jaccard = find_jaccard_overlap(anchors, gt_boxes) # (N1, N2)
-    
-    prior_max_iou, prior_gt_box_idx = jaccard.max(1) # (N1), (N1)
-    
-    _, top_priors_idx = prior_max_iou.sort(descending=True)
-    return anchors[top_priors_idx[:top_n]], prior_max_iou[top_priors_idx[:top_n]]
-
 def show_anchors(image, boxes, anchors, verbose=True):
     img_arr = np.array(T.ToPILImage()(image))
 
@@ -105,8 +93,8 @@ def show_anchors(image, boxes, anchors, verbose=True):
     plt.axis('off')
     
 def show_image_from_dataset(dataset, index, top_n_anchors=10, verbose=True):
-    # plt.figure(figsize=(6,6))
-    plt.figure(figsize=(10,10))
+    plt.figure(figsize=(6,6))
+    # plt.figure(figsize=(10,10))
 
     image, target = dataset[index]
 
@@ -180,19 +168,68 @@ def show_loss(loss, box_loss, cls_loss):
     axes[2].set_title("Cls Loss")
     axes[2].plot(cls_loss)
 
-def show_loss_epochs(train_info):
+def show_loss_epochs_all(train_info):
     _, axes = plt.subplots(1, 3, figsize=(18,4))
 
     x = np.arange(len(train_info['train_loss_epochs']))
 
     axes[0].set_title("Loss")
     axes[0].plot(train_info['train_loss_epochs'], '-o')
+    axes[0].plot(train_info['valid_loss_epochs'], '-o')
     axes[0].set_xticks(x)
+    axes[0].legend(['train', 'val'], loc='upper right')
 
     axes[1].set_title("Box Loss")
     axes[1].plot(train_info['train_box_loss_epochs'], '-o')
+    axes[1].plot(train_info['valid_box_loss_epochs'], '-o')
+    axes[1].set_xticks(x)
+    axes[1].legend(['train', 'val'], loc='upper right')
+
+    axes[2].set_title("Cls Loss")
+    axes[2].plot( train_info['train_cls_loss_epochs'], '-o')
+    axes[2].plot(train_info['valid_cls_loss_epochs'], '-o')
+    axes[2].set_xticks(x)
+    axes[2].legend(['train', 'val'], loc='upper right')
+    
+
+
+def show_loss_epochs_train(train_info):
+    show_loss_epochs(
+        train_info['train_loss_epochs'],
+        train_info['train_box_loss_epochs'],
+        train_info['train_cls_loss_epochs']
+    )
+
+def show_loss_epochs_valid(train_info):
+    show_loss_epochs(
+        train_info['valid_loss_epochs'],
+        train_info['valid_box_loss_epochs'],
+        train_info['valid_cls_loss_epochs']
+    )
+
+def show_loss_epochs(loss, box_loss, cls_loss):
+    _, axes = plt.subplots(1, 3, figsize=(18,4))
+
+    x = np.arange(len(loss))
+
+    axes[0].set_title("Loss")
+    axes[0].plot(loss, '-o')
+    axes[0].set_xticks(x)
+
+    axes[1].set_title("Box Loss")
+    axes[1].plot(box_loss, '-o')
     axes[1].set_xticks(x)
 
     axes[2].set_title("Cls Loss")
-    axes[2].plot(train_info['train_cls_loss_epochs'], '-o')
+    axes[2].plot(cls_loss, '-o')
     axes[2].set_xticks(x)
+
+def show_scores(train_info):
+    plt.figure(figsize=(5, 4))
+    scores = train_info['valid_scores']
+    x = np.arange(len(scores))
+    plt.plot(scores, '-o')
+    plt.xticks(x)
+    plt.title('AP')
+    plt.show()
+

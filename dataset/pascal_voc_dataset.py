@@ -50,9 +50,10 @@ class PascalVOCDataset(Dataset):
 
         # Discard difficult objects, if desired
         if not self.keep_difficult:
-            boxes = boxes[1 - difficulties]
-            labels = labels[1 - difficulties]
-            difficulties = difficulties[1 - difficulties]
+            mask = (1 - difficulties).type(torch.BoolTensor)
+            boxes = boxes[mask]
+            labels = labels[mask]
+            difficulties = difficulties[mask]
 
         # Apply transformations
         # image, boxes, labels, difficulties = transform(image, boxes, labels, difficulties, split=self.split)

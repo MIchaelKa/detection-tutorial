@@ -101,8 +101,8 @@ def calculate_mAP(det_boxes, det_scores, true_boxes, true_labels, device, thresh
         true_images.extend([i] * true_labels[i].size(0))
     # n_objects is the total no. of objects across all images
     true_images = torch.LongTensor(true_images).to(device) # (n_objects)
-    true_boxes = torch.cat(true_boxes, dim=0)  # (n_objects, 4)
-    true_labels = torch.cat(true_labels, dim=0)  # (n_objects)
+    true_boxes = torch.cat(true_boxes, dim=0).to(device)  # (n_objects, 4)
+    true_labels = torch.cat(true_labels, dim=0).to(device)  # (n_objects)
 
     det_images = list()
     for i in range(len(det_scores)):
@@ -182,11 +182,20 @@ def calculate_mAP(det_boxes, det_scores, true_boxes, true_labels, device, thresh
 
 import math
 
-def process_anchors(anchors, gt_boxes):
+def get_top_n_anchors(anchors, gt_boxes, top_n=10):
     # anchors (N1, 4)
     # gt_boxes (N2, 4)
+ 
+    jaccard = find_jaccard_overlap(anchors, gt_boxes) # (N1, N2)
     
-    threshold = 0.3
+    prior_max_iou, prior_gt_box_idx = jaccard.max(1) # (N1), (N1)
+    
+    _, top_priors_idx = prior_max_iou.sort(descending=True)
+    return anchors[top_priors_idx[:top_n]], prior_max_iou[top_priors_idx[:top_n]]
+
+def process_anchors(anchors, gt_boxes, threshold=0.3):
+    # anchors (N1, 4)
+    # gt_boxes (N2, 4)
     
     jaccard = find_jaccard_overlap(anchors, gt_boxes) # (N1, N2)
     
@@ -199,8 +208,7 @@ def process_anchors(anchors, gt_boxes):
     
     return prior_labels, gt_offsets
 
-def generate_anchors():
-    image_size = 200 # do we need?
+def generate_anchors(clip=False):
 
     # TODO: anchors per pixel, return?
     
@@ -222,13 +230,21 @@ def generate_anchors():
                     anchor = [x, y, width, height]
                     anchors.append(anchor)
 
-    # TODO: clamp here?
-    #
+    # TODO: torch.tensor here?
     # - do we already need torch.tensor here?
     # - only if we use it in loss calculation right from her
-
-    return cxcy_to_xy(torch.tensor(anchors))                
     # return np.array(anchors)
+
+    # TODO: clamp here?
+    # before or after cxcy_to_xy?
+    # no sence to make it before?
+
+    anchors = torch.tensor(anchors)
+    anchors = cxcy_to_xy(anchors)
+    if clip:
+        anchors = anchors.clamp_(0, 1)
+    return anchors
+    
 
 #
 # time
