@@ -319,7 +319,7 @@ def run(
      
     return train_info, valid_loader, model
 
-def main(debug=True):
+def main():
 
     print('run main...')
     t0 = time.time()
@@ -333,7 +333,7 @@ def main(debug=True):
         'batch_size'    : 2,
         'num_epoch'     : 2,
         'verbose'       : True,
-        'debug'         : debug
+        'debug'         : True
     }
 
     train_info = run(**params)

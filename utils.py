@@ -212,23 +212,31 @@ def generate_anchors(clip=False):
 
     # TODO: anchors per pixel, return?
     
-    feature_map_size = 7
+    # feature_map_size = 7
+    feature_dims = [25, 13, 7, 4]
+
+    # Difference between SSD and RPN
+    #
+    # SSD has more accurate setup of anchor generation
+    # + support of different numbers of anchors per pixel of feature map
+
     scales = [0.9, 0.6, 0.3]
     aspect_ratios = [1., 2., 0.5]
     
     anchors = []
     
-    for i in range(feature_map_size):
-        for j in range(feature_map_size):
-            for scale in scales:
-                for ratio in aspect_ratios:
-                    x = (i + 0.5) / feature_map_size
-                    y = (j + 0.5) / feature_map_size
-                    width = scale * math.sqrt(ratio)
-                    height = scale / math.sqrt(ratio)
-                    
-                    anchor = [x, y, width, height]
-                    anchors.append(anchor)
+    for f in feature_dims:
+        for i in range(f):
+            for j in range(f):
+                for scale in scales:
+                    for ratio in aspect_ratios:
+                        x = (i + 0.5) / f
+                        y = (j + 0.5) / f
+                        width = scale * math.sqrt(ratio)
+                        height = scale / math.sqrt(ratio)
+                        
+                        anchor = [x, y, width, height]
+                        anchors.append(anchor)
 
     # TODO: torch.tensor here?
     # - do we already need torch.tensor here?

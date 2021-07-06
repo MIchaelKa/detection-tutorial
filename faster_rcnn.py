@@ -7,10 +7,21 @@ from torchvision import models
 
 from utils import generate_anchors, find_jaccard_overlap, gcxgcy_to_cxcy, xy_to_cxcy, cxcy_to_xy
 
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+
 def faster_rcnn(device):
     # remember about 7x7 first conv, does resnext have it?
-    resnet = models.resnet18(pretrained=True)
-    backbone = nn.Sequential(*list(resnet.children())[:-2])
+
+    # resnet = models.resnet18(pretrained=True)
+    # backbone = nn.Sequential(*list(resnet.children())[:-2])
+
+    backbone = resnet_fpn_backbone(
+        'resnet18',
+        pretrained=True,
+        trainable_layers=5, # all layers
+        # trainable_layers=3,
+        returned_layers=[2,3,4]
+    )
 
     anchors = generate_anchors().to(device)
 
@@ -31,24 +42,25 @@ class RPN(nn.Module):
 
         # TODO: all consts to init
 
-        in_channels = 512
+        in_channels = 256
         intermediate_size = in_channels
 
         self.conv3 = nn.Conv2d(in_channels, intermediate_size, kernel_size=3, stride=1, padding=1)
 
         N = 9 # TODO: anchors per pixel
-        self.reg = nn.Conv2d(intermediate_size, N*4, kernel_size=1, stride=1, padding=0)
         self.cls = nn.Conv2d(intermediate_size, N, kernel_size=1, stride=1, padding=0)
+        self.reg = nn.Conv2d(intermediate_size, N*4, kernel_size=1, stride=1, padding=0)
         
-        
-    def forward(self, x,):
+    def forward(self, features):  
+        classes = []
+        boxes = []
 
-        x = F.relu(self.conv3(x))
+        for feature in features:
+            x = F.relu(self.conv3(feature))  
+            classes.append(self.cls(x))
+            boxes.append(self.reg(x))
 
-        boxes = self.reg(x)
-        classes = self.cls(x)
-
-        return boxes, classes
+        return classes, boxes
 
 
 class FasterRCNN(nn.Module):
@@ -59,22 +71,33 @@ class FasterRCNN(nn.Module):
         self.device = device
         self.rpn = RPN()
 
+    def permute_and_reshape(self, x, last_dim):
+
+        # TODO:
+        # .view will not work without contiguous, but .reshape should work
+        # should we use .reshape here after .permute?!
+        # box = box.reshape(box.shape[0], -1, 4)
+        # box = box.reshape(box.shape[0], 4, -1)
+        x = x.permute(0, 2, 3, 1).contiguous()
+        x = x.view(x.shape[0], -1, last_dim)
+        return x
+
     def forward(self, x):
         x = self.backbone(x)
 
-        box, cls = self.rpn(x)
+        features = list(x.values())
+        cls, box = self.rpn(features)
+        classes = []
+        boxes = []
+        for c, b in zip(cls, box):
+            boxes.append(self.permute_and_reshape(b, 4))
+            classes.append(self.permute_and_reshape(c, 1))
 
-        # view will not work without contiguous, but reshape should work
-        # should we use reshape here after permute?!
-        # box = box.reshape(box.shape[0], -1, 4)
-        # box = box.reshape(box.shape[0], 4, -1)
+        # remember about the order of layers, it should match the order of anchors
+        # there is only sence in it if we have different anchors for different feature maps (scales, ratio)
+        cls = torch.cat(classes, 1)
+        box = torch.cat(boxes, 1)
 
-        box = box.permute(0, 2, 3, 1).contiguous()
-        box = box.view(box.shape[0], -1, 4)
-
-        cls = cls.permute(0, 2, 3, 1).contiguous()
-        cls = cls.view(cls.shape[0], -1, 1)
-         
         return box, cls
 
     def detect(self, offsets, labels, prob_threshold=0.5, max_overlap=0.5):
