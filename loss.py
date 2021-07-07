@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from utils import generate_anchors, process_anchors
+from utils import generate_anchors
+from utils import find_jaccard_overlap, cxcy_to_gcxgcy, xy_to_cxcy
 
 class BoxLoss(nn.Module):
     def __init__(self, device, anchor_threshold):
@@ -13,20 +14,50 @@ class BoxLoss(nn.Module):
         self.anchor_threshold = anchor_threshold
         # TODO: get from model
         self.anchors = generate_anchors().to(device)
+
+    def process_anchors(self, anchors, gt_boxes, threshold=0.3):
+        # anchors (N1, 4)
+        # gt_boxes (N2, 4)
+    
+        jaccard = find_jaccard_overlap(anchors, gt_boxes) # (N1, N2)
+        
+        max_iou_for_anchors, gt_boxes_id_for_anchors = jaccard.max(1) # (N1), (N1)
+
+        # fix cases when gt box has no anchor above threshold
+        n_objects = gt_boxes.shape[0]
+        _, anchor_id_for_object = jaccard.max(0) # (N2), (N2)
+        gt_boxes_id_for_anchors[anchor_id_for_object] = torch.LongTensor(range(n_objects)).to(self.device)
+        max_iou_for_anchors[anchor_id_for_object] = 1
+
+        positive_anchors_mask = (max_iou_for_anchors > threshold) # (N1)
+        gt_boxes_id_for_positive_anchors = gt_boxes_id_for_anchors[positive_anchors_mask] # (n_pos_anchors)
+
+        gt_boxes_for_positive_anchors = gt_boxes[gt_boxes_id_for_positive_anchors]  # (n_pos_anchors, 4)
+        positive_anchors = anchors[positive_anchors_mask] # (n_pos_anchors, 4)
+        
+        gt_offsets = cxcy_to_gcxgcy(xy_to_cxcy(gt_boxes_for_positive_anchors), xy_to_cxcy(positive_anchors)) # (n_pos_anchors, 4)
+
+        prior_labels = positive_anchors_mask.int() # (N1)
+        
+        return prior_labels, gt_offsets
         
     def process_target_batch(self, targets):   
         gt_labels, gt_offsets = [], []
         
         for target in targets:
             # TODO: can we move it all at once?
+            # Should we move it here or later, process_anchors works faster on GPU?
             gt_boxes = target['boxes'].to(self.device)
-            labels, offsets = process_anchors(self.anchors, gt_boxes, self.anchor_threshold)
+            labels, offsets = self.process_anchors(self.anchors, gt_boxes, self.anchor_threshold)
             gt_labels.append(labels)
             gt_offsets.append(offsets)
-    #         print(offsets.shape)
+            # print(offsets.shape)
             
         gt_labels = torch.stack(gt_labels, dim=0)
-        gt_offsets = torch.stack(gt_offsets, dim=0)
+        # print(gt_labels.shape)
+
+        gt_offsets = torch.cat(gt_offsets, dim=0)
+        # print(gt_offsets.shape)
                 
         return gt_labels, gt_offsets
 
@@ -44,7 +75,7 @@ class BoxLoss(nn.Module):
         # smooth_l1_loss, l1_loss
         box_loss = F.smooth_l1_loss(
             predicted_offsets[positive_anchors],
-            gt_offsets[positive_anchors],
+            gt_offsets,
         )
         
         gt_labels = gt_labels.type_as(predicted_labels)

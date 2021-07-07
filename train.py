@@ -202,7 +202,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 
         # Train
         t1 = time.time()
-        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=False)
+        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
 
         loss_meter, box_loss_meter, cls_loss_meter = loss_meters
 
@@ -339,12 +339,13 @@ def main():
     seed_everything(SEED)
 
     params = {
-        'learning_rate' : 0.001,
-        'weight_decay'  : 0,
-        'batch_size'    : 2,
-        'num_epoch'     : 2,
-        'verbose'       : True,
-        'debug'         : True
+        'anchor_threshold' : 0.5,
+        'learning_rate'    : 0.001,
+        'weight_decay'     : 0,
+        'batch_size'       : 8,
+        'num_epoch'        : 5,
+        'verbose'          : True,
+        'debug'            : False
     }
 
     train_info = run(**params)

@@ -193,21 +193,6 @@ def get_top_n_anchors(anchors, gt_boxes, top_n=10):
     _, top_priors_idx = prior_max_iou.sort(descending=True)
     return anchors[top_priors_idx[:top_n]], prior_max_iou[top_priors_idx[:top_n]]
 
-def process_anchors(anchors, gt_boxes, threshold=0.3):
-    # anchors (N1, 4)
-    # gt_boxes (N2, 4)
-    
-    jaccard = find_jaccard_overlap(anchors, gt_boxes) # (N1, N2)
-    
-    prior_max_iou, prior_gt_box_idx = jaccard.max(1) # (N1), (N1)
-    
-    prior_labels = (prior_max_iou > threshold).int() # (N1)
-    prior_boxes = gt_boxes[prior_gt_box_idx] # (N1, 4)
-    
-    gt_offsets = cxcy_to_gcxgcy(xy_to_cxcy(prior_boxes), xy_to_cxcy(anchors))  # (N1, 4)
-    
-    return prior_labels, gt_offsets
-
 def generate_anchors(clip=False):
 
     # TODO: anchors per pixel, return?
@@ -254,7 +239,7 @@ def generate_anchors(clip=False):
     anchors = torch.tensor(anchors)
     anchors = cxcy_to_xy(anchors)
     if clip:
-        anchors = anchors.clamp_(0, 1)
+        anchors.clamp_(0, 1)
     return anchors
     
 
