@@ -6,10 +6,11 @@ from torch.nn import functional as F
 from utils import generate_anchors, process_anchors
 
 class BoxLoss(nn.Module):
-    def __init__(self, device):
+    def __init__(self, device, anchor_threshold):
         super().__init__()
 
         self.device = device
+        self.anchor_threshold = anchor_threshold
         # TODO: get from model
         self.anchors = generate_anchors().to(device)
         
@@ -19,7 +20,7 @@ class BoxLoss(nn.Module):
         for target in targets:
             # TODO: can we move it all at once?
             gt_boxes = target['boxes'].to(self.device)
-            labels, offsets = process_anchors(self.anchors, gt_boxes)
+            labels, offsets = process_anchors(self.anchors, gt_boxes, self.anchor_threshold)
             gt_labels.append(labels)
             gt_offsets.append(offsets)
     #         print(offsets.shape)

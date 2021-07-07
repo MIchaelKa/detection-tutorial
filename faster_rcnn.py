@@ -47,16 +47,30 @@ class RPN(nn.Module):
 
         self.conv3 = nn.Conv2d(in_channels, intermediate_size, kernel_size=3, stride=1, padding=1)
 
-        N = 9 # TODO: anchors per pixel
+        N = 3 # TODO: anchors per pixel
         self.cls = nn.Conv2d(intermediate_size, N, kernel_size=1, stride=1, padding=0)
         self.reg = nn.Conv2d(intermediate_size, N*4, kernel_size=1, stride=1, padding=0)
+
+        # we need to use in case of different anchor shapes on different feature maps?
+        # feat_layers = 4
+        # self.cls = nn.ModuleList([nn.Conv2d(intermediate_size, N, kernel_size=1, stride=1, padding=0) for i in range(feat_layers)])
+        # self.reg = nn.ModuleList([nn.Conv2d(intermediate_size, N*4, kernel_size=1, stride=1, padding=0) for i in range(feat_layers)])
         
     def forward(self, features):  
         classes = []
         boxes = []
 
-        for feature in features:
-            x = F.relu(self.conv3(feature))  
+        # print(len(features))
+
+        for i, feature in enumerate(features):
+
+            # print(feature.shape)
+            
+            x = F.relu(self.conv3(feature))
+            
+            # classes.append(self.cls[i](x))
+            # boxes.append(self.reg[i](x))
+
             classes.append(self.cls(x))
             boxes.append(self.reg(x))
 
@@ -76,7 +90,7 @@ class FasterRCNN(nn.Module):
         # TODO:
         # .view will not work without contiguous, but .reshape should work
         # should we use .reshape here after .permute?!
-        # box = box.reshape(box.shape[0], -1, 4)
+        # box = box.reshape(box.shape[0], -1, 4) # error! mix data within batch
         # box = box.reshape(box.shape[0], 4, -1)
         x = x.permute(0, 2, 3, 1).contiguous()
         x = x.view(x.shape[0], -1, last_dim)
@@ -94,7 +108,7 @@ class FasterRCNN(nn.Module):
             classes.append(self.permute_and_reshape(c, 1))
 
         # remember about the order of layers, it should match the order of anchors
-        # there is only sence in it if we have different anchors for different feature maps (scales, ratio)
+        # (there is only sence in it if we have different anchors (scales, ratio) for different feature maps)
         cls = torch.cat(classes, 1)
         box = torch.cat(boxes, 1)
 

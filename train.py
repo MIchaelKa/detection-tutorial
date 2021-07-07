@@ -267,6 +267,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 def run_loader(
     train_loader,
     valid_loader,
+    anchor_threshold=0.5,
     learning_rate=3e-4,
     weight_decay=1e-3,
     num_epoch=10,
@@ -275,6 +276,7 @@ def run_loader(
 
     if verbose:
         run_decription = (
+            f"anchor_threshold = {anchor_threshold}\n"
             f"learning_rate = {learning_rate}\n"
             f"weight_decay = {weight_decay}\n"
             f"num_epoch = {num_epoch}\n"
@@ -284,7 +286,7 @@ def run_loader(
     device = get_device()
 
     model = faster_rcnn(device).to(device)
-    criterion = BoxLoss(device)
+    criterion = BoxLoss(device, anchor_threshold)
 
     optimizer = torch.optim.SGD(
         model.parameters(),
@@ -299,6 +301,7 @@ def run_loader(
     return train_info, model
 
 def run(
+    anchor_threshold=0.5,
     learning_rate=3e-4,
     weight_decay=1e-3,
     batch_size=8,
@@ -315,7 +318,15 @@ def run(
 
     train_loader, valid_loader = create_dataloaders_sampler(dataset, dataset, batch_size=batch_size, debug=debug)
 
-    train_info, model = run_loader(train_loader, valid_loader, learning_rate, weight_decay, num_epoch, verbose)
+    train_info, model = run_loader(
+        train_loader,
+        valid_loader,
+        anchor_threshold,
+        learning_rate,
+        weight_decay,
+        num_epoch,
+        verbose
+    )
      
     return train_info, valid_loader, model
 
