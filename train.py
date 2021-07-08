@@ -202,7 +202,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 
         # Train
         t1 = time.time()
-        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
+        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=False)
 
         loss_meter, box_loss_meter, cls_loss_meter = loss_meters
 

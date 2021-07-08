@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import torch
 
-from utils import get_top_n_anchors, generate_anchors, process_anchors
+from utils import get_top_n_anchors, generate_anchors
 
 def show_predictions(image, gt_boxes, predicted_boxes, verbose=True):
     img_arr = np.array(T.ToPILImage()(image))

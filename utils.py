@@ -195,6 +195,15 @@ def get_top_n_anchors(anchors, gt_boxes, top_n=10):
 
 def generate_anchors(clip=False):
 
+    # we call it only once, no need for efficient implementation?
+    #
+    # torchvision call it for every image
+    #
+    # because of?:
+    # batch of one image without Scale(200)?
+    # same params, but different feature maps
+    # model read data(sizes of feature maps) from anchor generator
+
     # TODO: anchors per pixel, return?
     
     # feature_map_size = 7
@@ -205,7 +214,7 @@ def generate_anchors(clip=False):
     # SSD has more accurate setup of anchor generation
     # + support of different numbers of anchors per pixel of feature map
 
-    # scales = [0.9, 0.6, 0.3]
+    # scales = [0.9, 0.6, 0.3, 0.2, 0.1]
 
     feature_map_scales = [0.2, 0.4, 0.6, 0.8]
 
