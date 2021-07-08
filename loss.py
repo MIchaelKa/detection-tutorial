@@ -12,6 +12,7 @@ class BoxLoss(nn.Module):
 
         self.device = device
         self.anchor_threshold = anchor_threshold
+        self.neg_pos_ratio = 3.0
         # TODO: get from model
         self.anchors = generate_anchors().to(device)
 
@@ -65,7 +66,7 @@ class BoxLoss(nn.Module):
 
         positive_anchors = (gt_labels != 0)
 
-        # v, c = torch.unique(gt_labels, return_counts=True)
+        v, c = torch.unique(gt_labels, return_counts=True)
         # print(f'anchors pos: {c[1]}, neg: {c[0]}')
 
         # print(predicted_offsets.shape)
@@ -79,15 +80,41 @@ class BoxLoss(nn.Module):
         )
         
         gt_labels = gt_labels.type_as(predicted_labels)
+
+        # Hard Negative Mining
+        # from SSD paper
+        #
         
         cls_loss = F.binary_cross_entropy_with_logits(
             predicted_labels,
-            gt_labels.unsqueeze(-1)
+            gt_labels.unsqueeze(-1),
+            reduction='none'
         )
+        cls_loss = cls_loss.squeeze()
+        # print(cls_loss.shape)
+
+        n_positives = positive_anchors.sum(dim=1) # per image
+        n_hard_negatives = self.neg_pos_ratio * n_positives
         
-        loss = box_loss + cls_loss
+        cls_loss_pos = cls_loss[positive_anchors]
+        # print(cls_loss_pos.shape)
+
+        cls_loss_neg = cls_loss.clone()
+        cls_loss_neg[positive_anchors] = 0.  # positive priors are ignored (never in top n_hard_negatives)
+        cls_loss_neg, _ = cls_loss_neg.sort(dim=1, descending=True)
+
+        hardness_ranks = torch.LongTensor(range(2577)).unsqueeze(0).expand_as(cls_loss_neg).to(self.device)
+        # print(hardness_ranks, hardness_ranks.shape)
+        hard_negatives = hardness_ranks < n_hard_negatives.unsqueeze(1)
+        cls_loss_hard_neg = cls_loss_neg[hard_negatives]
+        # print(cls_loss_hard_neg.shape)
+
+        # As in the paper, averaged over positive priors only, although computed over both positive and hard-negative priors
+        cls_loss_2 = (cls_loss_hard_neg.sum() + cls_loss_pos.sum()) / n_positives.sum().float()  # (), scalar
         
-        return loss, box_loss, cls_loss
+        loss = box_loss + cls_loss_2
+        
+        return loss, box_loss, cls_loss_2
 
     def forward(self, predicted_labels, predicted_offsets, targets):
 
