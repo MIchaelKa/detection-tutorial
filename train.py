@@ -67,7 +67,7 @@ def create_dataloaders_sampler(
     )
 
     if verbose:
-        print(f'data loader size, train: {len(train_loader)}, valid: {len(valid_loader)}, batch_size {batch_size}')
+        print(f'data loader size, train: {len(train_loader)}, valid: {len(valid_loader)}\nbatch_size = {batch_size}')
     
     return train_loader, valid_loader
 
@@ -202,7 +202,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 
         # Train
         t1 = time.time()
-        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=False)
+        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
 
         loss_meter, box_loss_meter, cls_loss_meter = loss_meters
 
@@ -265,28 +265,48 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
     return train_info
 
 def run_loader(
+    generate_anchors_settings,
+    box_loss_settings,
     train_loader,
     valid_loader,
-    anchor_threshold=0.5,
     learning_rate=3e-4,
     weight_decay=1e-3,
     num_epoch=10,
-    verbose=True
+    verbose=True,
+    print_params=True,
     ):
 
-    if verbose:
+    if print_params:  
         run_decription = (
-            f"anchor_threshold = {anchor_threshold}\n"
             f"learning_rate = {learning_rate}\n"
             f"weight_decay = {weight_decay}\n"
             f"num_epoch = {num_epoch}\n"
         )
         print(run_decription)
 
+        run_decription = (
+            f"generate anchors settings:\n"
+            f"feature_dims = {generate_anchors_settings['feature_dims']}\n"
+            f"feature_map_scales = {generate_anchors_settings['feature_map_scales']}\n"
+            f"aspect_ratios = {generate_anchors_settings['aspect_ratios']}\n"
+            f"clip = {generate_anchors_settings['clip']}\n"
+        )
+        print(run_decription)
+
+        run_decription = (
+            f"box loss settings:\n"
+            f"anchor_threshold = {box_loss_settings['anchor_threshold']}\n"
+            f"fix_no_anchors = {box_loss_settings['fix_no_anchors']}\n"
+            f"HNM settings:\n"
+            f"enable_hnm = {box_loss_settings['enable_hnm']}\n"
+            f"neg_pos_ratio = {box_loss_settings['neg_pos_ratio']}\n"
+        )
+        print(run_decription)
+
     device = get_device()
 
-    model = faster_rcnn(device).to(device)
-    criterion = BoxLoss(device, anchor_threshold)
+    model = faster_rcnn(device, generate_anchors_settings).to(device)
+    criterion = BoxLoss(device, box_loss_settings, model.anchors)
 
     optimizer = torch.optim.SGD(
         model.parameters(),
@@ -301,12 +321,14 @@ def run_loader(
     return train_info, model
 
 def run(
-    anchor_threshold=0.5,
+    generate_anchors_settings,
+    box_loss_settings,
     learning_rate=3e-4,
     weight_decay=1e-3,
     batch_size=8,
     num_epoch=10,
     verbose=True,
+    print_params=True,
     debug=False
     ):
 
@@ -319,13 +341,15 @@ def run(
     train_loader, valid_loader = create_dataloaders_sampler(dataset, dataset, batch_size=batch_size, debug=debug)
 
     train_info, model = run_loader(
+        generate_anchors_settings,
+        box_loss_settings,
         train_loader,
         valid_loader,
-        anchor_threshold,
         learning_rate,
         weight_decay,
         num_epoch,
-        verbose
+        verbose,
+        print_params
     )
      
     return train_info, valid_loader, model
@@ -338,14 +362,63 @@ def main():
     SEED = 2021
     seed_everything(SEED)
 
+    generate_anchors_settings = dict(
+        clip=False,
+        feature_dims = [25, 13, 7, 4], # TODO: Read from image?
+        # scales = [0.9, 0.6, 0.3],
+        feature_map_scales = [0.2, 0.4, 0.6, 0.8],
+        aspect_ratios = [1., 2., 0.5],
+    )
+
+    box_loss_settings = dict(
+        anchor_threshold = 0.3,
+        fix_no_anchors = False,
+
+        # Hard Negative Mining settings
+        enable_hnm = False,
+        neg_pos_ratio = 3.0
+    )
+
+    backbone_settings = dict(
+        name = 'resnet18' # 'resnext50' 'effnet'
+    )
+
+    detection_settings = dict(
+        clip_predictions=False,
+        prob_threshold=0.5,
+        max_overlap=0.5
+    )
+
+    evaluation_settings = dict(
+        mAP_threshold=0.5,
+    )
+    
+    # compare with trainimg scheduler_params impl!
+    # scheduler_params = dict(
+    #     mode='max',
+    #     factor=0.7,
+    #     patience=0,
+    #     verbose=False, 
+    #     threshold=0.0001,
+    #     threshold_mode='abs',
+    #     cooldown=0, 
+    #     min_lr=1e-8,
+    #     eps=1e-08
+    # )
+
     params = {
-        'anchor_threshold' : 0.5,
-        'learning_rate'    : 0.001,
-        'weight_decay'     : 0,
-        'batch_size'       : 8,
-        'num_epoch'        : 5,
-        'verbose'          : True,
-        'debug'            : False
+        'generate_anchors_settings' : generate_anchors_settings,
+        'box_loss_settings' : box_loss_settings,
+
+        # 'rpn_heads'         : 0,
+
+        'learning_rate'     : 0.001,
+        'weight_decay'      : 0,
+        'batch_size'        : 8,
+        'num_epoch'         : 5,
+        'verbose'           : True,
+        'print_params'      : True, # False in notebook
+        'debug'             : False
     }
 
     train_info = run(**params)

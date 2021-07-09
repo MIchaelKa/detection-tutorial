@@ -7,19 +7,21 @@ from utils import generate_anchors
 from utils import find_jaccard_overlap, cxcy_to_gcxgcy, xy_to_cxcy
 
 class BoxLoss(nn.Module):
-    def __init__(self, device, anchor_threshold):
+    def __init__(self, device, box_loss_settings, anchors):
         super().__init__()
 
         self.device = device
-        self.anchor_threshold = anchor_threshold
-        # TODO: get from model
-        self.anchors = generate_anchors().to(device)
 
-        # Hard Negative Mining settings
-        self.enable_hnm = True
-        self.neg_pos_ratio = 3.0
+        self.anchor_threshold = box_loss_settings['anchor_threshold']
+        self.fix_no_anchors = box_loss_settings['fix_no_anchors']
 
-    def process_anchors(self, anchors, gt_boxes, threshold=0.3):
+        self.enable_hnm = box_loss_settings['enable_hnm']
+        self.neg_pos_ratio = box_loss_settings['neg_pos_ratio']
+
+        self.anchors = anchors
+
+
+    def process_anchors(self, anchors, gt_boxes):
         # anchors (N1, 4)
         # gt_boxes (N2, 4)
     
@@ -27,13 +29,18 @@ class BoxLoss(nn.Module):
         
         max_iou_for_anchors, gt_boxes_id_for_anchors = jaccard.max(1) # (N1), (N1)
 
-        # fix cases when gt box has no anchor above threshold
-        n_objects = gt_boxes.shape[0]
-        _, anchor_id_for_object = jaccard.max(0) # (N2), (N2)
-        gt_boxes_id_for_anchors[anchor_id_for_object] = torch.LongTensor(range(n_objects)).to(self.device)
-        max_iou_for_anchors[anchor_id_for_object] = 1
+        # TODO: test this params using get_positive_anchors
+        # get_positive_anchors call here, does it affect performance?
+        # using inline? in python?
 
-        positive_anchors_mask = (max_iou_for_anchors > threshold) # (N1)
+        if self.fix_no_anchors:
+            # fix cases when gt box has no anchor above threshold
+            n_objects = gt_boxes.shape[0]
+            _, anchor_id_for_object = jaccard.max(0) # (N2), (N2)
+            gt_boxes_id_for_anchors[anchor_id_for_object] = torch.LongTensor(range(n_objects)).to(self.device)
+            max_iou_for_anchors[anchor_id_for_object] = 1
+
+        positive_anchors_mask = (max_iou_for_anchors > self.anchor_threshold) # (N1)
         gt_boxes_id_for_positive_anchors = gt_boxes_id_for_anchors[positive_anchors_mask] # (n_pos_anchors)
 
         gt_boxes_for_positive_anchors = gt_boxes[gt_boxes_id_for_positive_anchors]  # (n_pos_anchors, 4)
@@ -52,7 +59,7 @@ class BoxLoss(nn.Module):
             # TODO: can we move it all at once?
             # Should we move it here or later, process_anchors works faster on GPU?
             gt_boxes = target['boxes'].to(self.device)
-            labels, offsets = self.process_anchors(self.anchors, gt_boxes, self.anchor_threshold)
+            labels, offsets = self.process_anchors(self.anchors, gt_boxes)
             gt_labels.append(labels)
             gt_offsets.append(offsets)
             # print(offsets.shape)
@@ -68,7 +75,6 @@ class BoxLoss(nn.Module):
     def criterion(self, gt_labels, gt_offsets, predicted_labels, predicted_offsets):
 
         positive_anchors = (gt_labels != 0)
-        n_anchors = positive_anchors.shape[1]
 
         # v, c = torch.unique(gt_labels, return_counts=True)
         # print(f'anchors pos: {c[1]}, neg: {c[0]}')
@@ -85,10 +91,6 @@ class BoxLoss(nn.Module):
         
         gt_labels = gt_labels.type_as(predicted_labels)
 
-        # self.rtg()
-
-        # cls_loss = self.hnm_cls_loss(predicted_labels, gt_labels)
-
         if self.enable_hnm:
             cls_loss = self.hnm_cls_loss(predicted_labels, gt_labels)
         else:
@@ -101,8 +103,6 @@ class BoxLoss(nn.Module):
         
         return loss, box_loss, cls_loss
 
-    def rtg(self):
-        print('sdfsdf')
     #
     # Hard Negative Mining
     # from SSD paper

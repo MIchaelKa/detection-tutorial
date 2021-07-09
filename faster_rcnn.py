@@ -9,7 +9,7 @@ from utils import generate_anchors, find_jaccard_overlap, gcxgcy_to_cxcy, xy_to_
 
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 
-def faster_rcnn(device):
+def faster_rcnn(device, generate_anchors_settings):
     # remember about 7x7 first conv, does resnext have it?
 
     # resnet = models.resnet18(pretrained=True)
@@ -23,7 +23,7 @@ def faster_rcnn(device):
         returned_layers=[2,3,4]
     )
 
-    anchors = generate_anchors().to(device)
+    anchors = generate_anchors(generate_anchors_settings).to(device)
 
     return FasterRCNN(backbone, anchors, device).to(device)
 

@@ -193,7 +193,7 @@ def get_top_n_anchors(anchors, gt_boxes, top_n=10):
     _, top_priors_idx = prior_max_iou.sort(descending=True)
     return anchors[top_priors_idx[:top_n]], prior_max_iou[top_priors_idx[:top_n]]
 
-def generate_anchors(clip=False):
+def generate_anchors(settings):
 
     # we call it only once, no need for efficient implementation?
     #
@@ -205,20 +205,24 @@ def generate_anchors(clip=False):
     # model read data(sizes of feature maps) from anchor generator
 
     # TODO: anchors per pixel, return?
-    
-    # feature_map_size = 7
-    feature_dims = [25, 13, 7, 4]
 
     # Difference between SSD and RPN
     #
     # SSD has more accurate setup of anchor generation
     # + support of different numbers of anchors per pixel of feature map
 
+    # Example of init values below
+    # feature_map_size = 7
+    # feature_dims = [25, 13, 7, 4]
     # scales = [0.9, 0.6, 0.3, 0.2, 0.1]
+    # feature_map_scales = [0.2, 0.4, 0.6, 0.8]
+    # aspect_ratios = [1., 2., 0.5]
 
-    feature_map_scales = [0.2, 0.4, 0.6, 0.8]
-
-    aspect_ratios = [1., 2., 0.5]
+    feature_dims = settings['feature_dims']
+    # scales = settings['scales']
+    feature_map_scales = settings['feature_map_scales']
+    aspect_ratios = settings['aspect_ratios']
+    clip = settings['clip']
     
     anchors = []
     
