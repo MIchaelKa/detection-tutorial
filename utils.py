@@ -193,7 +193,7 @@ def get_top_n_anchors(anchors, gt_boxes, top_n=10):
     _, top_priors_idx = prior_max_iou.sort(descending=True)
     return anchors[top_priors_idx[:top_n]], prior_max_iou[top_priors_idx[:top_n]]
 
-def generate_anchors(feature_dims, settings):
+def generate_anchors(image, feature_dims, settings):
 
     # we call it only once, no need for efficient implementation?
     #
@@ -223,6 +223,8 @@ def generate_anchors(feature_dims, settings):
     feature_map_scales = settings['feature_map_scales']
     aspect_ratios = settings['aspect_ratios']
     clip = settings['clip']
+
+    image_ratio = image.shape[3] / image.shape[2]
     
     anchors = []
     
@@ -232,11 +234,13 @@ def generate_anchors(feature_dims, settings):
             for j in range(f[1]):
                 # for scale in scales:
                 for ratio in aspect_ratios:
-                    x = (i + 0.5) / f[1]
-                    y = (j + 0.5) / f[0]
-                    width = scale * math.sqrt(ratio)
+                    x = (i + 0.5) / f[0]
+                    y = (j + 0.5) / f[1]
+                    width = scale * math.sqrt(ratio) / image_ratio
                     height = scale / math.sqrt(ratio)
                     
+                    # should we have [y, x, height, width]??
+
                     anchor = [x, y, width, height]
                     anchors.append(anchor)
 
