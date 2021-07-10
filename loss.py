@@ -7,7 +7,7 @@ from utils import generate_anchors
 from utils import find_jaccard_overlap, cxcy_to_gcxgcy, xy_to_cxcy
 
 class BoxLoss(nn.Module):
-    def __init__(self, device, box_loss_settings, anchors):
+    def __init__(self, device, box_loss_settings, generate_anchors_settings):
         super().__init__()
 
         self.device = device
@@ -18,7 +18,7 @@ class BoxLoss(nn.Module):
         self.enable_hnm = box_loss_settings['enable_hnm']
         self.neg_pos_ratio = box_loss_settings['neg_pos_ratio']
 
-        self.anchors = anchors
+        self.generate_anchors_settings = generate_anchors_settings
 
 
     def process_anchors(self, anchors, gt_boxes):
@@ -52,14 +52,18 @@ class BoxLoss(nn.Module):
         
         return prior_labels, gt_offsets
         
-    def process_target_batch(self, targets):   
+    def process_target_batch(self, feature_dims, targets):   
         gt_labels, gt_offsets = [], []
         
         for target in targets:
             # TODO: can we move it all at once?
             # Should we move it here or later, process_anchors works faster on GPU?
             gt_boxes = target['boxes'].to(self.device)
-            labels, offsets = self.process_anchors(self.anchors, gt_boxes)
+            anchors = generate_anchors(feature_dims, self.generate_anchors_settings).to(self.device)
+
+            # print(anchors.shape, gt_boxes.shape)
+
+            labels, offsets = self.process_anchors(anchors, gt_boxes)
             gt_labels.append(labels)
             gt_offsets.append(offsets)
             # print(offsets.shape)
@@ -79,6 +83,7 @@ class BoxLoss(nn.Module):
         # v, c = torch.unique(gt_labels, return_counts=True)
         # print(f'anchors pos: {c[1]}, neg: {c[0]}')
 
+        # print(predicted_labels.shape)
         # print(predicted_offsets.shape)
         # print(positive_anchors.shape)
         # print(predicted_offsets[positive_anchors].shape)
@@ -116,8 +121,8 @@ class BoxLoss(nn.Module):
             gt_labels.unsqueeze(-1),
             reduction='none'
         )
-        cls_loss_all = cls_loss_all.squeeze()
-        # print(cls_loss.shape)
+        cls_loss_all = cls_loss_all.squeeze(-1) # .squeeze() or .squeeze(-1)
+        # print(cls_loss_all.shape)
 
         n_positives = positive_anchors.sum(dim=1) # per image
         n_hard_negatives = self.neg_pos_ratio * n_positives
@@ -144,9 +149,9 @@ class BoxLoss(nn.Module):
 
         return cls_loss
 
-    def forward(self, predicted_labels, predicted_offsets, targets):
+    def forward(self, predicted_labels, predicted_offsets, feature_dims, targets):
 
-        gt_labels, gt_offsets = self.process_target_batch(targets)
+        gt_labels, gt_offsets = self.process_target_batch(feature_dims, targets)
 
         gt_labels = gt_labels.to(self.device)
         gt_offsets = gt_offsets.to(self.device)

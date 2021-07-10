@@ -71,10 +71,24 @@ def create_dataloaders_sampler(
     
     return train_loader, valid_loader
 
+import numpy as np
+
+def print_grads(optimizer, model):
+    mean_grads = []
+    for group in optimizer.param_groups:
+        for param in group['params']:
+            # print(param.grad.shape)
+            # print(param.grad.mean())
+            mean_grads.append(param.grad.mean())
+    print(np.array(mean_grads).max())
+
+    # print(model.rpn.reg.weight.grad.shape)
+                
+
 def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True):
     
     t0 = time.time()
-    print_every = 200
+    print_every = 400
 
     model.train()
 
@@ -84,15 +98,19 @@ def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
 
     for index, (image_batch, target_batch) in enumerate(train_loader):
         
-        image_batch = torch.stack(image_batch, dim=0)   
-        image_batch = image_batch.to(device)
+        # image_batch = torch.stack(image_batch, dim=0).to(device)
+        image_batch = image_batch[0].unsqueeze(0).to(device)
  
-        offsets, labels = model(image_batch)
+        offsets, labels, feature_dims = model(image_batch)
 
-        loss, box_loss, cls_loss = criterion(labels, offsets, target_batch)
+        loss, box_loss, cls_loss = criterion(labels, offsets, feature_dims, target_batch)
 
         optimizer.zero_grad()
         loss.backward()
+
+        # print_grads(optimizer, model)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+
         optimizer.step()
 
         # Update meters
@@ -115,7 +133,7 @@ def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
 def validate(model, device, criterion, valid_loader, verbose=True):
 
     t0 = time.time()
-    print_every = 100
+    print_every = 200
 
     model.eval()
     
@@ -133,12 +151,12 @@ def validate(model, device, criterion, valid_loader, verbose=True):
     with torch.no_grad():
         for index, (image_batch, target_batch) in enumerate(valid_loader):
 
-            image_batch = torch.stack(image_batch, dim=0)   
-            image_batch = image_batch.to(device)
+            # image_batch = torch.stack(image_batch, dim=0).to(device)
+            image_batch = image_batch[0].unsqueeze(0).to(device)
             
-            offsets, labels = model(image_batch)
+            offsets, labels, feature_dims = model(image_batch)
 
-            loss, box_loss, cls_loss = criterion(labels, offsets, target_batch)
+            loss, box_loss, cls_loss = criterion(labels, offsets, feature_dims, target_batch)
             
             # Update meters
             loss_meter.update(loss.item())
@@ -146,7 +164,7 @@ def validate(model, device, criterion, valid_loader, verbose=True):
             cls_loss_meter.update(cls_loss.item())
 
             # Detection
-            pred_boxes, pred_conf = model.detect(offsets, labels, prob_threshold=0.5, max_overlap=0.7)
+            pred_boxes, pred_conf = model.detect(offsets, labels, feature_dims, prob_threshold=0.5, max_overlap=0.7)
 
             # Save for mAP calculation
             true_boxes = [t['boxes'] for t in target_batch]
@@ -202,7 +220,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 
         # Train
         t1 = time.time()
-        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
+        loss_meters = train_epoch(model, device, criterion, train_loader, optimizer, verbose=False)
 
         loss_meter, box_loss_meter, cls_loss_meter = loss_meters
 
@@ -306,7 +324,7 @@ def run_loader(
     device = get_device()
 
     model = faster_rcnn(device, generate_anchors_settings).to(device)
-    criterion = BoxLoss(device, box_loss_settings, model.anchors)
+    criterion = BoxLoss(device, box_loss_settings, generate_anchors_settings)
 
     optimizer = torch.optim.SGD(
         model.parameters(),

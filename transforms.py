@@ -4,8 +4,8 @@ from torchvision.transforms import functional as F
 def get_transform(train=True):
     transforms = []
       
-    transforms.append(Resize((200, 200)))
-    # transforms.append(Scale())
+    # transforms.append(Resize((200, 200)))
+    transforms.append(Scale())
     transforms.append(ToTensor())
 
     return Compose(transforms)
@@ -14,6 +14,14 @@ def get_transform_to_show():
     transforms = []
       
     transforms.append(Scale())
+    transforms.append(ToTensor())
+
+    return Compose(transforms)
+
+def get_transform_2():
+    transforms = []
+      
+    transforms.append(Resize((200, 200)))
     transforms.append(ToTensor())
 
     return Compose(transforms)
@@ -47,6 +55,7 @@ class Resize(object):
     
         return image, target
 
+# transform from x,y to cx, cy
 class Scale(object):
     # TODO: do this once, before training       
     def __call__(self, image, target):

@@ -16,16 +16,16 @@ def faster_rcnn(device, generate_anchors_settings):
     # backbone = nn.Sequential(*list(resnet.children())[:-2])
 
     backbone = resnet_fpn_backbone(
-        'resnet18',
+        'resnet18', # resnet18, resnet50
         pretrained=True,
         trainable_layers=5, # all layers
         # trainable_layers=3,
         returned_layers=[2,3,4]
     )
 
-    anchors = generate_anchors(generate_anchors_settings).to(device)
+    # anchors = generate_anchors(generate_anchors_settings).to(device)
 
-    return FasterRCNN(backbone, anchors, device).to(device)
+    return FasterRCNN(backbone, device, generate_anchors_settings).to(device)
 
 
 class RoIPooling(nn.Module):
@@ -60,12 +60,14 @@ class RPN(nn.Module):
         classes = []
         boxes = []
 
+        
+
         # print(len(features))
 
         for i, feature in enumerate(features):
 
             # print(feature.shape)
-            
+              
             x = F.relu(self.conv3(feature))
             
             # classes.append(self.cls[i](x))
@@ -78,12 +80,13 @@ class RPN(nn.Module):
 
 
 class FasterRCNN(nn.Module):
-    def __init__(self, backbone, anchors, device):
+    def __init__(self, backbone, device, generate_anchors_settings):
         super().__init__()
         self.backbone = backbone
-        self.anchors = anchors
+        # self.anchors = anchors
         self.device = device
         self.rpn = RPN()
+        self.generate_anchors_settings = generate_anchors_settings
 
     def permute_and_reshape(self, x, last_dim):
 
@@ -99,7 +102,11 @@ class FasterRCNN(nn.Module):
     def forward(self, x):
         x = self.backbone(x)
 
+        # TODO: add support > 1 image in batch
+        # you cannot pass several images with different sizes throught nentwork at one time
         features = list(x.values())
+        feature_dims = [(f.shape[2], f.shape[3]) for f in features]
+
         cls, box = self.rpn(features)
         classes = []
         boxes = []
@@ -112,9 +119,9 @@ class FasterRCNN(nn.Module):
         cls = torch.cat(classes, 1)
         box = torch.cat(boxes, 1)
 
-        return box, cls
+        return box, cls, feature_dims
 
-    def detect(self, offsets, labels, prob_threshold=0.5, max_overlap=0.5):
+    def detect(self, offsets, labels, feature_dims, prob_threshold=0.5, max_overlap=0.5):
 
         batch_size = offsets.shape[0]
 
@@ -132,8 +139,10 @@ class FasterRCNN(nn.Module):
             num_positives = positive_indices.sum()
             # print(f'[FasterRCNN] num_positives: {num_positives}')
 
+            anchors = generate_anchors(feature_dims, self.generate_anchors_settings).to(self.device)
+
             positive_offsets = image_offsets[positive_indices]
-            positive_anchors = xy_to_cxcy(self.anchors[positive_indices])
+            positive_anchors = xy_to_cxcy(anchors[positive_indices])
             positive_scores = labels_probs[positive_indices]
 
             predicted_boxes = cxcy_to_xy(gcxgcy_to_cxcy(positive_offsets, positive_anchors))

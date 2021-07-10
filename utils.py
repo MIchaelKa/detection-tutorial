@@ -193,7 +193,7 @@ def get_top_n_anchors(anchors, gt_boxes, top_n=10):
     _, top_priors_idx = prior_max_iou.sort(descending=True)
     return anchors[top_priors_idx[:top_n]], prior_max_iou[top_priors_idx[:top_n]]
 
-def generate_anchors(settings):
+def generate_anchors(feature_dims, settings):
 
     # we call it only once, no need for efficient implementation?
     #
@@ -218,7 +218,7 @@ def generate_anchors(settings):
     # feature_map_scales = [0.2, 0.4, 0.6, 0.8]
     # aspect_ratios = [1., 2., 0.5]
 
-    feature_dims = settings['feature_dims']
+    # feature_dims = settings['feature_dims']
     # scales = settings['scales']
     feature_map_scales = settings['feature_map_scales']
     aspect_ratios = settings['aspect_ratios']
@@ -228,12 +228,12 @@ def generate_anchors(settings):
     
     for idx, f in enumerate(feature_dims):
         scale = feature_map_scales[idx]
-        for i in range(f):
-            for j in range(f):
+        for i in range(f[0]):
+            for j in range(f[1]):
                 # for scale in scales:
                 for ratio in aspect_ratios:
-                    x = (i + 0.5) / f
-                    y = (j + 0.5) / f
+                    x = (i + 0.5) / f[1]
+                    y = (j + 0.5) / f[0]
                     width = scale * math.sqrt(ratio)
                     height = scale / math.sqrt(ratio)
                     
