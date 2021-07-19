@@ -76,8 +76,8 @@ class BoxLoss(nn.Module):
 
         positive_anchors = (gt_labels != 0)
 
-        # v, c = torch.unique(gt_labels, return_counts=True)
-        # print(f'anchors pos: {c[1]}, neg: {c[0]}')
+        v, c = torch.unique(gt_labels, return_counts=True)
+        print(f'anchors pos: {c[1]}, neg: {c[0]}')
 
         # print(predicted_offsets.shape)
         # print(positive_anchors.shape)
