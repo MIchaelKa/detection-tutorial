@@ -60,8 +60,6 @@ class RPN(nn.Module):
         classes = []
         boxes = []
 
-        
-
         # print(len(features))
 
         for i, feature in enumerate(features):
@@ -121,7 +119,7 @@ class FasterRCNN(nn.Module):
 
         return box, cls, feature_dims
 
-    def detect(self, offsets, labels, feature_dims, prob_threshold=0.5, max_overlap=0.5):
+    def detect(self, offsets, labels, images, feature_dims, prob_threshold=0.5, max_overlap=0.5):
 
         batch_size = offsets.shape[0]
 
@@ -139,7 +137,7 @@ class FasterRCNN(nn.Module):
             num_positives = positive_indices.sum()
             # print(f'[FasterRCNN] num_positives: {num_positives}')
 
-            anchors = generate_anchors(feature_dims, self.generate_anchors_settings).to(self.device)
+            anchors = generate_anchors(images, feature_dims, self.generate_anchors_settings).to(self.device)
 
             positive_offsets = image_offsets[positive_indices]
             positive_anchors = xy_to_cxcy(anchors[positive_indices])

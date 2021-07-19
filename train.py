@@ -103,7 +103,7 @@ def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
  
         offsets, labels, feature_dims = model(image_batch)
 
-        loss, box_loss, cls_loss = criterion(labels, offsets, feature_dims, target_batch)
+        loss, box_loss, cls_loss = criterion(labels, offsets, image_batch, feature_dims, target_batch)
 
         optimizer.zero_grad()
         loss.backward()
@@ -156,7 +156,7 @@ def validate(model, device, criterion, valid_loader, verbose=True):
             
             offsets, labels, feature_dims = model(image_batch)
 
-            loss, box_loss, cls_loss = criterion(labels, offsets, feature_dims, target_batch)
+            loss, box_loss, cls_loss = criterion(labels, offsets, image_batch, feature_dims, target_batch)
             
             # Update meters
             loss_meter.update(loss.item())
@@ -164,7 +164,7 @@ def validate(model, device, criterion, valid_loader, verbose=True):
             cls_loss_meter.update(cls_loss.item())
 
             # Detection
-            pred_boxes, pred_conf = model.detect(offsets, labels, feature_dims, prob_threshold=0.5, max_overlap=0.7)
+            pred_boxes, pred_conf = model.detect(offsets, labels, image_batch, feature_dims, prob_threshold=0.5, max_overlap=0.7)
 
             # Save for mAP calculation
             true_boxes = [t['boxes'] for t in target_batch]

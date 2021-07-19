@@ -52,14 +52,14 @@ class BoxLoss(nn.Module):
         
         return prior_labels, gt_offsets
         
-    def process_target_batch(self, feature_dims, targets):   
+    def process_target_batch(self, image, feature_dims, targets):   
         gt_labels, gt_offsets = [], []
         
         for target in targets:
             # TODO: can we move it all at once?
             # Should we move it here or later, process_anchors works faster on GPU?
             gt_boxes = target['boxes'].to(self.device)
-            anchors = generate_anchors(feature_dims, self.generate_anchors_settings).to(self.device)
+            anchors = generate_anchors(image, feature_dims, self.generate_anchors_settings).to(self.device)
 
             # print(anchors.shape, gt_boxes.shape)
 
@@ -149,9 +149,9 @@ class BoxLoss(nn.Module):
 
         return cls_loss
 
-    def forward(self, predicted_labels, predicted_offsets, feature_dims, targets):
+    def forward(self, predicted_labels, predicted_offsets, image, feature_dims, targets):
 
-        gt_labels, gt_offsets = self.process_target_batch(feature_dims, targets)
+        gt_labels, gt_offsets = self.process_target_batch(image, feature_dims, targets)
 
         gt_labels = gt_labels.to(self.device)
         gt_offsets = gt_offsets.to(self.device)
