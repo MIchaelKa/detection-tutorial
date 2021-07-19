@@ -76,8 +76,8 @@ class BoxLoss(nn.Module):
 
         positive_anchors = (gt_labels != 0)
 
-        v, c = torch.unique(gt_labels, return_counts=True)
-        print(f'anchors pos: {c[1]}, neg: {c[0]}')
+        # v, c = torch.unique(gt_labels, return_counts=True)
+        # print(f'anchors pos: {c[1]}, neg: {c[0]}')
 
         # print(predicted_offsets.shape)
         # print(positive_anchors.shape)
@@ -116,7 +116,8 @@ class BoxLoss(nn.Module):
             gt_labels.unsqueeze(-1),
             reduction='none'
         )
-        cls_loss_all = cls_loss_all.squeeze()
+
+        cls_loss_all = cls_loss_all.squeeze(-1) # .squeeze() or .squeeze(-1)
         # print(cls_loss.shape)
 
         n_positives = positive_anchors.sum(dim=1) # per image
