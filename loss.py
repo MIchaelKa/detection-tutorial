@@ -121,7 +121,10 @@ class BoxLoss(nn.Module):
             gt_labels.unsqueeze(-1),
             reduction='none'
         )
-        cls_loss_all = cls_loss_all.squeeze(-1) # .squeeze() or .squeeze(-1)
+
+        # .squeeze() or .squeeze(-1) ?
+        # squeeze(-1) when batch size is equal to 1
+        cls_loss_all = cls_loss_all.squeeze(-1) 
         # print(cls_loss_all.shape)
 
         n_positives = positive_anchors.sum(dim=1) # per image
