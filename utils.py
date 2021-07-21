@@ -104,12 +104,16 @@ def calculate_mAP(det_boxes, det_scores, true_boxes, true_labels, device, thresh
     true_boxes = torch.cat(true_boxes, dim=0).to(device)  # (n_objects, 4)
     true_labels = torch.cat(true_labels, dim=0).to(device)  # (n_objects)
 
+    print(true_boxes.shape)
+
     det_images = list()
     for i in range(len(det_scores)):
         det_images.extend([i] * det_scores[i].size(0))
     det_images = torch.LongTensor(det_images).to(device)  # (n_detections)
     det_boxes = torch.cat(det_boxes, dim=0)  # (n_detections, 4)
     det_scores = torch.cat(det_scores, dim=0)  # (n_detections)
+
+    print(det_boxes.shape)
 
     n_objects = true_boxes.size(0)
     true_boxes_detected = torch.zeros(n_objects, dtype=torch.uint8).to(device)

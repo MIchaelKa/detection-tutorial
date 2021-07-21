@@ -114,8 +114,10 @@ def train_epoch(model, device, criterion, train_loader, optimizer, verbose=True)
 
 def validate(model, device, criterion, valid_loader, verbose=True):
 
+    # TODO: Trainer - new class for holding params like mAP_treshold
+
     t0 = time.time()
-    print_every = 100
+    print_every = 2
 
     model.eval()
     
@@ -146,7 +148,7 @@ def validate(model, device, criterion, valid_loader, verbose=True):
             cls_loss_meter.update(cls_loss.item())
 
             # Detection
-            pred_boxes, pred_conf = model.detect(offsets, labels, prob_threshold=0.5, max_overlap=0.7)
+            pred_boxes, pred_conf = model.detect(offsets, labels)
 
             # Save for mAP calculation
             true_boxes = [t['boxes'] for t in target_batch]
@@ -267,6 +269,7 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
 def run_loader(
     generate_anchors_settings,
     box_loss_settings,
+    detection_settings,
     train_loader,
     valid_loader,
     learning_rate=3e-4,
@@ -297,15 +300,23 @@ def run_loader(
             f"box loss settings:\n"
             f"anchor_threshold = {box_loss_settings['anchor_threshold']}\n"
             f"fix_no_anchors = {box_loss_settings['fix_no_anchors']}\n"
-            f"HNM settings:\n"
+            f"enable_random_neg = {box_loss_settings['enable_random_neg']}\n"
             f"enable_hnm = {box_loss_settings['enable_hnm']}\n"
             f"neg_pos_ratio = {box_loss_settings['neg_pos_ratio']}\n"
         )
         print(run_decription)
 
+        run_decription = (
+            f"detection settings:\n"
+            f"clip_predictions = {detection_settings['clip_predictions']}\n"
+            f"prob_threshold = {detection_settings['prob_threshold']}\n"
+            f"max_overlap = {detection_settings['max_overlap']}\n"
+        )
+        print(run_decription)
+
     device = get_device()
 
-    model = faster_rcnn(device, generate_anchors_settings).to(device)
+    model = faster_rcnn(device, generate_anchors_settings, detection_settings).to(device)
     criterion = BoxLoss(device, box_loss_settings, model.anchors)
 
     optimizer = torch.optim.SGD(
@@ -323,6 +334,7 @@ def run_loader(
 def run(
     generate_anchors_settings,
     box_loss_settings,
+    detection_settings,
     learning_rate=3e-4,
     weight_decay=1e-3,
     batch_size=8,
@@ -343,6 +355,7 @@ def run(
     train_info, model = run_loader(
         generate_anchors_settings,
         box_loss_settings,
+        detection_settings,
         train_loader,
         valid_loader,
         learning_rate,
@@ -366,7 +379,12 @@ def main():
         clip=False,
         feature_dims = [25, 13, 7, 4], # TODO: Read from image?
         # scales = [0.9, 0.6, 0.3],
-        feature_map_scales = [0.2, 0.4, 0.6, 0.8],
+        feature_map_scales = [
+            [0.1, 0.3, 0.5],
+            [0.2, 0.4, 0.6],
+            [0.3, 0.5, 0.8],
+            [0.4, 0.6, 0.9]
+        ],
         aspect_ratios = [1., 2., 0.5],
     )
 
@@ -374,8 +392,9 @@ def main():
         anchor_threshold = 0.3,
         fix_no_anchors = False,
 
-        # Hard Negative Mining settings
+        enable_random_neg = True,
         enable_hnm = False,
+
         neg_pos_ratio = 3.0
     )
 
@@ -409,6 +428,7 @@ def main():
     params = {
         'generate_anchors_settings' : generate_anchors_settings,
         'box_loss_settings' : box_loss_settings,
+        'detection_settings' : detection_settings,
 
         # 'rpn_heads'         : 0,
 

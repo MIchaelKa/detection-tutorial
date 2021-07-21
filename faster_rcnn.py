@@ -9,7 +9,7 @@ from utils import generate_anchors, find_jaccard_overlap, gcxgcy_to_cxcy, xy_to_
 
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 
-def faster_rcnn(device, generate_anchors_settings):
+def faster_rcnn(device, generate_anchors_settings, detection_settings):
     # remember about 7x7 first conv, does resnext have it?
 
     # resnet = models.resnet18(pretrained=True)
@@ -23,7 +23,7 @@ def faster_rcnn(device, generate_anchors_settings):
         returned_layers=[2,3,4]
     )
 
-    return FasterRCNN(backbone, generate_anchors_settings, device).to(device)
+    return FasterRCNN(backbone, generate_anchors_settings, detection_settings, device).to(device)
 
 # TODO: combine this method with generate_anchors and generate_anchors_settings
 def get_num_anchors_per_pixel(settings):
@@ -85,13 +85,19 @@ class RPN(nn.Module):
 
 
 class FasterRCNN(nn.Module):
-    def __init__(self, backbone, generate_anchors_settings, device):
+    def __init__(self, backbone, generate_anchors_settings, detection_settings, device):
         super().__init__()
         self.backbone = backbone
         self.device = device
 
+        # generate_anchors_settings
         self.anchors = generate_anchors(generate_anchors_settings).to(device)
         num_anchors = get_num_anchors_per_pixel(generate_anchors_settings)
+
+        # detection_settings
+        self.clip_predictions = detection_settings['clip_predictions']
+        self.prob_threshold = detection_settings['prob_threshold']
+        self.max_overlap = detection_settings['max_overlap']
 
         self.rpn = RPN(num_anchors)
 
@@ -124,7 +130,7 @@ class FasterRCNN(nn.Module):
 
         return box, cls
 
-    def detect(self, offsets, labels, prob_threshold=0.5, max_overlap=0.5):
+    def detect(self, offsets, labels):
 
         batch_size = offsets.shape[0]
 
@@ -137,7 +143,7 @@ class FasterRCNN(nn.Module):
 
             labels_probs = torch.sigmoid(image_labels)
 
-            positive_indices = labels_probs > prob_threshold
+            positive_indices = labels_probs > self.prob_threshold
 
             num_positives = positive_indices.sum()
             # print(f'[FasterRCNN] num_positives: {num_positives}')
@@ -167,7 +173,7 @@ class FasterRCNN(nn.Module):
 
                 # Suppress boxes whose overlaps (with this box) are greater than maximum overlap
                 # Find such boxes and update suppress indices
-                suppress = torch.max(suppress, overlap[box] > max_overlap)
+                suppress = torch.max(suppress, overlap[box] > self.max_overlap)
                 # The max operation retains previously suppressed boxes, like an 'OR' operation
 
                 # Don't suppress this box, even though it has an overlap of 1 with itself
@@ -177,7 +183,8 @@ class FasterRCNN(nn.Module):
             final_boxes = sorted_boxes[mask]
             final_scores = sorted_scores[mask]
 
-            # final_boxes.clamp_(0, 1)
+            if self.clip_predictions:
+                final_boxes.clamp_(0, 1)
 
             detections.append(final_boxes)
             confidences.append(final_scores)
