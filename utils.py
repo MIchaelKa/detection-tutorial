@@ -227,18 +227,18 @@ def generate_anchors(settings):
     anchors = []
     
     for idx, f in enumerate(feature_dims):
-        scale = feature_map_scales[idx]
+        scales = feature_map_scales[idx]
         for i in range(f):
             for j in range(f):
-                # for scale in scales:
-                for ratio in aspect_ratios:
-                    x = (i + 0.5) / f
-                    y = (j + 0.5) / f
-                    width = scale * math.sqrt(ratio)
-                    height = scale / math.sqrt(ratio)
-                    
-                    anchor = [x, y, width, height]
-                    anchors.append(anchor)
+                for scale in scales:
+                    for ratio in aspect_ratios:
+                        x = (i + 0.5) / f
+                        y = (j + 0.5) / f
+                        width = scale * math.sqrt(ratio)
+                        height = scale / math.sqrt(ratio)
+                        
+                        anchor = [x, y, width, height]
+                        anchors.append(anchor)
 
     # TODO: torch.tensor here?
     # - do we already need torch.tensor here?

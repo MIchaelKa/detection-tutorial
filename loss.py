@@ -15,10 +15,17 @@ class BoxLoss(nn.Module):
         self.anchor_threshold = box_loss_settings['anchor_threshold']
         self.fix_no_anchors = box_loss_settings['fix_no_anchors']
 
+        self.enable_random_neg = box_loss_settings['enable_random_neg']
         self.enable_hnm = box_loss_settings['enable_hnm']
         self.neg_pos_ratio = box_loss_settings['neg_pos_ratio']
 
         self.anchors = anchors
+  
+        batch_size = 8
+        self.n_negatives = 100
+        self.rand_negative_b_idx = list()
+        for i in range(batch_size):
+            self.rand_negative_b_idx.extend([i] * self.n_negatives)
 
 
     def process_anchors(self, anchors, gt_boxes):
@@ -93,6 +100,8 @@ class BoxLoss(nn.Module):
 
         if self.enable_hnm:
             cls_loss = self.hnm_cls_loss(predicted_labels, gt_labels)
+        elif self.enable_random_neg:
+            cls_loss = self.cls_random_neg_loss(predicted_labels, gt_labels)
         else:
             cls_loss = F.binary_cross_entropy_with_logits(
                 predicted_labels,
@@ -102,6 +111,27 @@ class BoxLoss(nn.Module):
         loss = box_loss + cls_loss
         
         return loss, box_loss, cls_loss
+
+    def cls_random_neg_loss(self, predicted_labels, gt_labels):
+
+        positive_anchors = (gt_labels != 0)
+        rand_negative_idx = torch.randint(positive_anchors.shape[1], (positive_anchors.shape[0], self.n_negatives))
+
+        positive_anchors[self.rand_negative_b_idx[:positive_anchors.shape[0]*self.n_negatives], rand_negative_idx.reshape(-1)] = True
+
+        # print(f'n_positives: {positive_anchors.sum()}')
+
+        cls_loss = F.binary_cross_entropy_with_logits(
+            predicted_labels[positive_anchors],
+            gt_labels.unsqueeze(-1)[positive_anchors]
+        )
+
+        # print(predicted_labels[positive_anchors].shape)
+        # print(gt_labels.unsqueeze(-1)[positive_anchors].shape)
+
+        # cls_pos_loss + cls_neg_loss
+
+        return cls_loss
 
     #
     # Hard Negative Mining

@@ -23,9 +23,16 @@ def faster_rcnn(device, generate_anchors_settings):
         returned_layers=[2,3,4]
     )
 
-    anchors = generate_anchors(generate_anchors_settings).to(device)
+    return FasterRCNN(backbone, generate_anchors_settings, device).to(device)
 
-    return FasterRCNN(backbone, anchors, device).to(device)
+# TODO: combine this method with generate_anchors and generate_anchors_settings
+def get_num_anchors_per_pixel(settings):
+
+    feature_map_scales = settings['feature_map_scales']
+    aspect_ratios = settings['aspect_ratios']
+
+    num_anchors = [len(x) * len(aspect_ratios) for x in feature_map_scales]
+    return num_anchors
 
 
 class RoIPooling(nn.Module):
@@ -37,7 +44,7 @@ class RoIPooling(nn.Module):
 
 class RPN(nn.Module):
 
-    def __init__(self):
+    def __init__(self, num_anchors):
         super().__init__()
 
         # TODO: all consts to init
@@ -47,7 +54,7 @@ class RPN(nn.Module):
 
         self.conv3 = nn.Conv2d(in_channels, intermediate_size, kernel_size=3, stride=1, padding=1)
 
-        N = 3 # TODO: anchors per pixel
+        N = num_anchors[0]
         self.cls = nn.Conv2d(intermediate_size, N, kernel_size=1, stride=1, padding=0)
         self.reg = nn.Conv2d(intermediate_size, N*4, kernel_size=1, stride=1, padding=0)
 
@@ -78,12 +85,15 @@ class RPN(nn.Module):
 
 
 class FasterRCNN(nn.Module):
-    def __init__(self, backbone, anchors, device):
+    def __init__(self, backbone, generate_anchors_settings, device):
         super().__init__()
         self.backbone = backbone
-        self.anchors = anchors
         self.device = device
-        self.rpn = RPN()
+
+        self.anchors = generate_anchors(generate_anchors_settings).to(device)
+        num_anchors = get_num_anchors_per_pixel(generate_anchors_settings)
+
+        self.rpn = RPN(num_anchors)
 
     def permute_and_reshape(self, x, last_dim):
 
