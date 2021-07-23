@@ -117,7 +117,7 @@ def validate(model, device, criterion, valid_loader, verbose=True):
     # TODO: Trainer - new class for holding params like mAP_treshold
 
     t0 = time.time()
-    print_every = 2
+    print_every = 50
 
     model.eval()
     
@@ -131,6 +131,9 @@ def validate(model, device, criterion, valid_loader, verbose=True):
     all_pred_conf = []
     all_true_boxes = []
     all_true_labels = []
+
+    should_calculate_mAP = True
+    mAP = 0.0
 
     with torch.no_grad():
         for index, (image_batch, target_batch) in enumerate(valid_loader):
@@ -147,17 +150,19 @@ def validate(model, device, criterion, valid_loader, verbose=True):
             box_loss_meter.update(box_loss.item())
             cls_loss_meter.update(cls_loss.item())
 
-            # Detection
-            pred_boxes, pred_conf = model.detect(offsets, labels)
+            
+            if should_calculate_mAP:
+                # Detection
+                pred_boxes, pred_conf = model.detect(offsets, labels)
 
-            # Save for mAP calculation
-            true_boxes = [t['boxes'] for t in target_batch]
-            true_labels = [t['labels'] for t in target_batch]
+                # Save for mAP calculation
+                true_boxes = [t['boxes'] for t in target_batch]
+                true_labels = [t['labels'] for t in target_batch]
 
-            all_pred_boxes.extend(pred_boxes)
-            all_pred_conf.extend(pred_conf)
-            all_true_boxes.extend(true_boxes)
-            all_true_labels.extend(true_labels)
+                all_pred_boxes.extend(pred_boxes)
+                all_pred_conf.extend(pred_conf)
+                all_true_boxes.extend(true_boxes)
+                all_true_labels.extend(true_labels)
 
             if verbose and index % print_every == 0:
                 print('[valid] index: {:>2d}, loss(box/cls) = {:.5f}({:.5f}/{:.5f}) time: {}' \
@@ -172,7 +177,8 @@ def validate(model, device, criterion, valid_loader, verbose=True):
     if verbose:
         print('[valid] calculate_mAP... time: {}'.format(format_time(time.time() - t0)))
     
-    mAP = calculate_mAP(all_pred_boxes, all_pred_conf, all_true_boxes, all_true_labels, device, threshold=0.5)
+    if should_calculate_mAP:
+        mAP = calculate_mAP(all_pred_boxes, all_pred_conf, all_true_boxes, all_true_labels, device, threshold=0.5)
 
     if verbose:
         print('[valid] mAP = {:.5f},  time: {}'.format(mAP, format_time(time.time() - t0)))
@@ -196,6 +202,9 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
     valid_box_loss_epochs = []
     valid_cls_loss_epochs = []
     valid_scores = []
+
+    valid_best_loss = 999
+    best_epoch = 0
 
     if verbose:
         print('training started...')
@@ -239,12 +248,20 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
         valid_cls_loss_epochs.append(valid_cls_loss)
         valid_scores.append(score)
 
+        if valid_loss < valid_best_loss:
+            valid_best_loss = valid_loss
+            best_epoch = epoch
+
+            #save model
+            torch.save(model.state_dict(), f'pth/model_2.pth')
+            print('save')
+
         if verbose:
             print('[valid] epoch: {:>2d}, loss(box/cls) = {:.5f}({:.5f}/{:.5f}), mAP = {:.5f},  time: {}' \
                 .format(epoch+1, valid_loss, valid_box_loss, valid_cls_loss, score, format_time(time.time() - t1)))
 
     if verbose:
-        # print('[valid] best epoch {:>2d}, score = {:.5f}'.format(best_epoch+1, valid_best_score))
+        print('[valid] best epoch {:>2d}, score = {:.5f}'.format(best_epoch+1, valid_best_loss))
         print('training finished for: {}'.format(format_time(time.time() - t0)))
 
 

@@ -40,8 +40,8 @@ class BoxLoss(nn.Module):
         # get_positive_anchors call here, does it affect performance?
         # using inline? in python?
 
+        # this fixes cases when gt box has no anchor above threshold
         if self.fix_no_anchors:
-            # fix cases when gt box has no anchor above threshold
             n_objects = gt_boxes.shape[0]
             _, anchor_id_for_object = jaccard.max(0) # (N2), (N2)
             gt_boxes_id_for_anchors[anchor_id_for_object] = torch.LongTensor(range(n_objects)).to(self.device)

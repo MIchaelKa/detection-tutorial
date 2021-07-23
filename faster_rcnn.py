@@ -58,10 +58,9 @@ class RPN(nn.Module):
         self.cls = nn.Conv2d(intermediate_size, N, kernel_size=1, stride=1, padding=0)
         self.reg = nn.Conv2d(intermediate_size, N*4, kernel_size=1, stride=1, padding=0)
 
-        # we need to use in case of different anchor shapes on different feature maps?
-        # feat_layers = 4
-        # self.cls = nn.ModuleList([nn.Conv2d(intermediate_size, N, kernel_size=1, stride=1, padding=0) for i in range(feat_layers)])
-        # self.reg = nn.ModuleList([nn.Conv2d(intermediate_size, N*4, kernel_size=1, stride=1, padding=0) for i in range(feat_layers)])
+        # We need to use in case of different anchor shapes on different feature maps?
+        # self.cls = nn.ModuleList([nn.Conv2d(intermediate_size, n, kernel_size=1, stride=1, padding=0) for n in num_anchors])
+        # self.reg = nn.ModuleList([nn.Conv2d(intermediate_size, n*4, kernel_size=1, stride=1, padding=0) for n in num_anchors])
         
     def forward(self, features):  
         classes = []
