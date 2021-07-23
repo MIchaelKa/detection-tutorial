@@ -15,18 +15,24 @@ class BoxLoss(nn.Module):
         self.anchor_threshold = box_loss_settings['anchor_threshold']
         self.fix_no_anchors = box_loss_settings['fix_no_anchors']
 
+        self.enable_focal_loss = box_loss_settings['enable_focal_loss']
         self.enable_random_neg = box_loss_settings['enable_random_neg']
         self.enable_hnm = box_loss_settings['enable_hnm']
         self.neg_pos_ratio = box_loss_settings['neg_pos_ratio']
 
         self.anchors = anchors
-  
-        batch_size = 8
-        self.n_negatives = 100
-        self.rand_negative_b_idx = list()
-        for i in range(batch_size):
-            self.rand_negative_b_idx.extend([i] * self.n_negatives)
 
+        if self.enable_random_neg:
+            batch_size = 8
+            self.n_negatives = 100
+            self.rand_negative_b_idx = list()
+            for i in range(batch_size):
+                self.rand_negative_b_idx.extend([i] * self.n_negatives)
+
+        if self.enable_focal_loss:
+            alpha = box_loss_settings['focal_loss_alpha']
+            gamma = box_loss_settings['focal_loss_gamma']
+            self.focal_loss = FocalLoss(alpha, gamma)
 
     def process_anchors(self, anchors, gt_boxes):
         # anchors (N1, 4)
@@ -102,6 +108,8 @@ class BoxLoss(nn.Module):
             cls_loss = self.hnm_cls_loss(predicted_labels, gt_labels)
         elif self.enable_random_neg:
             cls_loss = self.cls_random_neg_loss(predicted_labels, gt_labels)
+        elif self.enable_focal_loss:
+            cls_loss = self.focal_loss(predicted_labels, gt_labels.unsqueeze(-1))
         else:
             cls_loss = F.binary_cross_entropy_with_logits(
                 predicted_labels,
@@ -185,3 +193,22 @@ class BoxLoss(nn.Module):
         loss = self.criterion(gt_labels, gt_offsets, predicted_labels, predicted_offsets)
 
         return loss
+
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=None, gamma=0):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+
+    def forward(self, x, t):
+        # x = x.squeeze()
+        
+        p = x.sigmoid()
+        pt = t * p + (1 - t) * (1 - p)
+        weight = (1 - pt).pow(self.gamma)
+        
+        if self.alpha:
+            at = t * self.alpha + (1 - t) * (1 - self.alpha)
+            weight *= at       
+        
+        return F.binary_cross_entropy_with_logits(x, t, weight.detach())

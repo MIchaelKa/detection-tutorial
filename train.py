@@ -252,9 +252,9 @@ def train_model(model, device, criterion, train_loader, valid_loader, optimizer,
             valid_best_loss = valid_loss
             best_epoch = epoch
 
-            #save model
+            # save model
             torch.save(model.state_dict(), f'pth/model_2.pth')
-            print('save')
+            print('[valid] save current model!')
 
         if verbose:
             print('[valid] epoch: {:>2d}, loss(box/cls) = {:.5f}({:.5f}/{:.5f}), mAP = {:.5f},  time: {}' \
