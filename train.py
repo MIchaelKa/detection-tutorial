@@ -363,11 +363,10 @@ def run(
 
     # dataset = PennFudanDataset('../PennFudanPed', get_transform(train=False))
 
-    dataset = PascalVOCDataset('./pascal-voc/', 'TRAIN', get_transform(train=True))
-    # TODO:
-    # valid_dataset = PascalVOCDataset('./pascal-voc/', 'VALID', get_transform(train=False))
+    train_dataset = PascalVOCDataset('./pascal-voc/', 'TRAIN', get_transform(train=True))
+    valid_dataset = PascalVOCDataset('./pascal-voc/', 'TRAIN', get_transform(train=False))
 
-    train_loader, valid_loader = create_dataloaders_sampler(dataset, dataset, batch_size=batch_size, debug=debug)
+    train_loader, valid_loader = create_dataloaders_sampler(train_dataset, valid_dataset, batch_size=batch_size, debug=debug)
 
     train_info, model = run_loader(
         generate_anchors_settings,

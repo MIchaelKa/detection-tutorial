@@ -1,3 +1,4 @@
+import random
 import torch
 from torchvision.transforms import functional as F
 
@@ -6,7 +7,14 @@ def get_transform(train=True):
       
     transforms.append(Resize((200, 200)))
     # transforms.append(Scale())
+
     transforms.append(ToTensor())
+    transforms.append(Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]))
+    
+    if train:
+        transforms.append(RandomHorizontalFlip(0.5))
 
     return Compose(transforms)
 
@@ -54,6 +62,27 @@ class Scale(object):
         boxes = target["boxes"]    
         new_boxes = boxes / image_dims 
         target["boxes"] = new_boxes
+        return image, target
+
+class RandomHorizontalFlip(object):
+    def __init__(self, prob):
+        self.prob = prob
+
+    def __call__(self, image, target):
+        if random.random() < self.prob:
+            image = image.flip(-1)
+            bbox = target["boxes"]
+            bbox[:, [0, 2]] = 1 - bbox[:, [2, 0]]
+            target["boxes"] = bbox
+        return image, target
+
+class Normalize(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, image, target):
+        image = F.normalize(image, mean=self.mean, std=self.std)
         return image, target
 
 class ToTensor(object):

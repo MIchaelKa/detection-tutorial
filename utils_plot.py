@@ -41,6 +41,21 @@ def show_predictions(image, gt_boxes, predicted_boxes, verbose=True):
     plt.grid(False)
     plt.axis('off')
 
+def show_dataset(dataset, count=5, random=True):
+    size = 5
+    plt.figure(figsize=(count*size,size))
+
+    if random:   
+        indices = np.random.choice(np.arange(len(dataset)), count, replace=False)
+    else:
+        indices = np.arange(count)
+
+    for i, index in enumerate(indices):    
+        image, target = dataset[index]
+        plt.subplot(1,count,i+1)
+        show_image_and_bb(image, target['boxes'], False)
+
+
 def show_image_and_bb(image, boxes, verbose=True):
     # img_arr = np.array(image)
     img_arr = np.array(T.ToPILImage()(image))
@@ -65,32 +80,6 @@ def show_image_and_bb(image, boxes, verbose=True):
     plt.grid(False)
     plt.axis('off')
 
-def show_anchors(image, boxes, anchors, verbose=True):
-    img_arr = np.array(T.ToPILImage()(image))
-
-    image_dims = torch.FloatTensor([img_arr.shape[1], img_arr.shape[0], img_arr.shape[1], img_arr.shape[0]]).unsqueeze(0)
-
-    new_boxes = boxes.clone()
-    new_boxes *= image_dims
-
-    new_anchors = anchors.clone()
-    new_anchors *= image_dims
-    
-    for bbox in new_boxes:       
-        color = (255, 0, 0)
-        cv2.rectangle(img_arr, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-        
-    for bbox in new_anchors:       
-        color = (0, 0, 255)
-        cv2.rectangle(img_arr, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 1)
-
-    if verbose:
-        print(f'Shape: {img_arr.shape}')
-
-    # plt.title(f'Shape: {img_arr.shape}', fontsize=16)
-    plt.imshow(img_arr)
-    plt.grid(False)
-    plt.axis('off')
     
 def show_image_from_dataset(dataset, index, top_n_anchors=10, verbose=True):
     plt.figure(figsize=(6,6))
